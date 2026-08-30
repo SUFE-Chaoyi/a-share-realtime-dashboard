@@ -1,0 +1,6 @@
+.DS_Store
+.workbuddy/
+dist/
+data/auto-refresh.log
+data/quote-cache.json
+tools/__pycache__/

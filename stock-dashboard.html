@@ -1,0 +1,3247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A股看盘面板</title>
+<style>
+:root {
+  --bg: #F5F7FA;
+  --table-bg: #FFFFFF;
+  --header-bg: #EEF2F6;
+  --text: #101828;
+  --text-secondary: #667085;
+  --border: #E4E7EC;
+  --up: #F04438;
+  --down: #16A34A;
+  --primary: #2970FF;
+  --danger: #F04438;
+  --row-hover: #F5F7FA;
+  --row-selected: #EAF2FF;
+  --row-selected-hover: #DDE9FF;
+  --radius: 8px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ===== App layout ===== */
+#app {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+.main-workspace {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+.pool-section {
+  flex: 0 0 42%;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.detail-section {
+  flex: 1;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--table-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 12px;
+  height: 40px;
+  border-bottom: 1px solid var(--border);
+  background: var(--header-bg);
+  flex-shrink: 0;
+}
+.detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.detail-actions button {
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--table-bg);
+  color: var(--primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+.detail-actions button:hover:not(:disabled) { border-color: var(--primary); background: #f7faff; }
+.detail-actions button:disabled { opacity: 0.45; cursor: not-allowed; }
+.detail-title-bar {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  overflow: hidden;
+}
+#detailTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.detail-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* ===== Header ===== */
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 0 8px;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex-shrink: 0;
+}
+header h1 { font-size: 17px; font-weight: 600; }
+.header-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.header-right button {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--table-bg);
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text);
+  transition: border-color 0.2s;
+  min-height: 30px;
+}
+.header-right button:hover { border-color: var(--primary); }
+.header-right button.primary {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.header-right button.primary:hover { opacity: 0.85; }
+.header-right button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+#marketStatus {
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+#marketStatus.open { background: #f0fdf4; color: var(--down); }
+#marketStatus.closed { background: #fef2f2; color: var(--danger); }
+#marketStatus.waiting { background: #fff7ed; color: #c2410c; }
+#lastUpdate { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+#saveStatus {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+#saveStatus.saving { color: #d97706; }
+#saveStatus.saved { color: var(--down); }
+#saveStatus.error { color: var(--danger); }
+#staleWarning {
+  font-size: 12px;
+  color: #d97706;
+  display: none;
+  white-space: nowrap;
+}
+.auto-pool-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #eef4ff;
+  color: var(--primary);
+  font-size: 12px;
+}
+.filter-toggle {
+  font-size: 12px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--text-secondary);
+  cursor: pointer;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.filter-toggle:hover { border-color: var(--primary); color: var(--primary); }
+.filter-toggle.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+/* ===== Spinner ===== */
+.spinner {
+  display: inline-block;
+  width: 12px; height: 12px;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===== Error bar ===== */
+#errorBar, #storageErrorBar {
+  display: none;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: var(--danger);
+  padding: 8px 16px;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* ===== Table ===== */
+.table-wrapper {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--table-bg);
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+}
+.pool-section .table-wrapper {
+  flex: 1;
+}
+.detail-section .table-wrapper {
+  flex: 1;
+  border: none;
+  border-radius: 0;
+}
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 14px;
+}
+#poolTable { min-width: 800px; }
+#detailTable { min-width: 560px; }
+thead th {
+  background: var(--header-bg);
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 0 12px;
+  height: 40px;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+}
+thead th.sortable { cursor: pointer; }
+thead th.sortable:hover { color: var(--text); }
+tbody td {
+  padding: 0 12px;
+  height: 44px;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+  background: var(--table-bg);
+  font-variant-numeric: tabular-nums;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr { transition: background 0.15s; }
+tbody tr:hover td { background: var(--row-hover); }
+#poolTable tbody tr[data-pool-id] { cursor: pointer; }
+#poolTable tbody tr[data-pool-id]:focus { outline: none; }
+#poolTable tbody tr[data-pool-id]:focus-visible td {
+  box-shadow: inset 0 2px var(--primary), inset 0 -2px var(--primary);
+}
+#poolTable tbody tr[data-pool-id]:focus-visible td:first-child { box-shadow: inset 2px 0 var(--primary), inset 0 2px var(--primary), inset 0 -2px var(--primary); }
+#poolTable tbody tr[data-pool-id]:focus-visible td:last-child { box-shadow: inset -2px 0 var(--primary), inset 0 2px var(--primary), inset 0 -2px var(--primary); }
+
+/* Sticky first column (pool table) */
+#poolTable thead th:first-child, #poolTable tbody td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+}
+#poolTable thead th:first-child { z-index: 15; background: var(--header-bg); }
+#poolTable tbody td:first-child { background: var(--table-bg); }
+#poolTable tbody tr:hover td:first-child { background: var(--row-hover); }
+
+/* Sticky last column (pool table) */
+#poolTable thead th:last-child, #poolTable tbody td:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 5;
+}
+#poolTable thead th:last-child { z-index: 15; background: var(--header-bg); }
+#poolTable tbody td:last-child { background: var(--table-bg); }
+#poolTable tbody tr:hover td:last-child { background: var(--row-hover); }
+
+/* Sticky first column (detail table) */
+#detailTable thead th:first-child, #detailTable tbody td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+}
+#detailTable thead th:first-child { z-index: 15; background: var(--header-bg); }
+#detailTable tbody td:first-child { background: var(--table-bg); }
+#detailTable tbody tr:hover td:first-child { background: var(--row-hover); }
+
+/* Sticky last column (detail table) */
+#detailTable thead th:last-child, #detailTable tbody td:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 5;
+}
+#detailTable thead th:last-child { z-index: 15; background: var(--header-bg); }
+#detailTable tbody td:last-child { background: var(--table-bg); }
+#detailTable tbody tr:hover td:last-child { background: var(--row-hover); }
+
+/* Selected row */
+#poolTable tbody tr.selected td { background: var(--row-selected) !important; }
+#poolTable tbody tr.selected:hover td { background: var(--row-selected-hover) !important; }
+
+/* Column alignment */
+.col-name { text-align: left; min-width: 140px; max-width: 200px; }
+.col-code { text-align: left; min-width: 70px; white-space: nowrap; }
+.col-stock-name { text-align: left; min-width: 80px; }
+.col-num { text-align: right; }
+.col-actions { text-align: right; white-space: nowrap; }
+
+/* Pool name */
+.pool-name-text {
+  cursor: pointer;
+  color: var(--primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  max-width: 180px;
+  vertical-align: middle;
+}
+.pool-name-text:hover { text-decoration: none; }
+
+/* Stock name in detail */
+.stock-name-text {
+  display: inline-block;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* Value colors */
+.val-up { color: var(--up); }
+.val-down { color: var(--down); }
+.val-flat { color: var(--text); }
+.val-na { color: var(--text-secondary); }
+
+/* Sort arrows */
+.sort-arrow { font-size: 10px; margin-left: 4px; opacity: 0; transition: opacity 0.15s; }
+th[aria-sort="descending"] .sort-arrow,
+th[aria-sort="ascending"] .sort-arrow { opacity: 1; }
+th.sortable:hover .sort-arrow { opacity: 0.4; }
+th[aria-sort="descending"] .sort-arrow::before { content: '\25BC'; }
+th[aria-sort="ascending"] .sort-arrow::before { content: '\25B2'; }
+
+/* Column dragging */
+thead th.column-draggable { cursor: grab; }
+thead th.column-draggable:active { cursor: grabbing; }
+thead th.column-dragging { opacity: 0.45; }
+thead th.column-drop-before { box-shadow: inset 3px 0 var(--primary); }
+thead th.column-drop-after { box-shadow: inset -3px 0 var(--primary); }
+
+/* ===== Flash animations ===== */
+@keyframes flashUp {
+  0% { background-color: rgba(240, 68, 56, 0.28); }
+  100% { background-color: transparent; }
+}
+@keyframes flashDown {
+  0% { background-color: rgba(22, 163, 74, 0.25); }
+  100% { background-color: transparent; }
+}
+.metric-flash-up { animation: flashUp 1s ease-out; }
+.metric-flash-down { animation: flashDown 1s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .metric-flash-up, .metric-flash-down { animation: none; }
+}
+
+/* ===== Action buttons ===== */
+.action-btn {
+  background: none;
+  border: none;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  min-height: 32px;
+  min-width: 44px;
+  transition: background 0.15s;
+}
+.action-btn:hover { background: rgba(41, 112, 255, 0.08); }
+#poolTable tbody .col-actions .action-btn { opacity: 0.62; }
+#poolTable tbody tr:hover .col-actions .action-btn,
+#poolTable tbody tr.selected .col-actions .action-btn,
+#poolTable tbody tr:focus-within .col-actions .action-btn { opacity: 1; }
+.action-btn.more-btn { color: var(--text-secondary); }
+.action-btn.more-btn:hover { background: rgba(0,0,0,0.06); }
+.remove-btn {
+  background: none;
+  border: none;
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  min-height: 32px;
+  min-width: 44px;
+  transition: background 0.15s;
+}
+.remove-btn:hover { background: rgba(240, 68, 56, 0.08); }
+
+/* ===== More menu ===== */
+.more-menu {
+  display: none;
+  position: fixed;
+  background: var(--table-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  z-index: 900;
+  min-width: 120px;
+  padding: 4px 0;
+}
+.more-menu.show { display: block; }
+.more-menu-item {
+  display: block;
+  width: 100%;
+  padding: 8px 16px;
+  border: none;
+  background: none;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+  min-height: 36px;
+}
+.more-menu-item:hover { background: var(--row-hover); }
+.more-menu-item.danger { color: var(--danger); }
+
+/* ===== Empty state ===== */
+.empty-cell {
+  text-align: center !important;
+  padding: 60px 20px !important;
+  color: var(--text-secondary);
+}
+.empty-cell p { margin-bottom: 8px; }
+.empty-cell .empty-title { font-size: 16px; color: var(--text); margin-bottom: 4px; }
+.empty-cell button {
+  margin-top: 12px;
+  padding: 8px 20px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  min-height: 36px;
+}
+
+/* Detail empty cell */
+.detail-empty-cell {
+  text-align: center !important;
+  padding: 40px 20px !important;
+  color: var(--text-secondary);
+}
+.detail-empty-cell p { margin-bottom: 8px; }
+.detail-empty-cell button {
+  margin-top: 12px;
+  padding: 8px 20px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  min-height: 36px;
+}
+
+/* ===== Skeleton ===== */
+.skeleton-cell {
+  height: 16px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+  display: inline-block;
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-cell { animation: none; background: #f0f0f0; }
+}
+
+/* ===== Modal ===== */
+.modal {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 1000;
+  justify-content: center;
+  align-items: center;
+}
+.modal.show { display: flex; }
+.modal-content {
+  background: var(--table-bg);
+  border-radius: var(--radius);
+  padding: 24px;
+  width: 90%;
+  max-width: 480px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.modal-content.modal-lg { max-width: 720px; }
+.modal-content h3 { margin-bottom: 16px; font-size: 16px; }
+.modal-content p { margin-bottom: 12px; color: var(--text-secondary); }
+.modal-content input[type="text"] {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+  margin-bottom: 12px;
+  min-height: 36px;
+}
+.modal-content input[type="text"]:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(41,112,255,0.1);
+}
+.form-error {
+  min-height: 18px;
+  margin-top: -7px;
+  color: var(--danger);
+  font-size: 12px;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+.modal-actions button {
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--table-bg);
+  font-size: 13px;
+  cursor: pointer;
+  min-height: 36px;
+}
+.modal-actions button.primary {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.modal-actions button.danger-btn {
+  background: var(--danger);
+  color: #fff;
+  border-color: var(--danger);
+}
+
+/* ===== Search ===== */
+#searchResults {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.search-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+  min-height: 44px;
+}
+.search-item:last-child { border-bottom: none; }
+.search-item:hover { background: var(--row-hover); }
+.search-item .code { color: var(--text-secondary); font-size: 12px; margin-right: 8px; }
+.search-item .add-btn {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  min-height: 32px;
+  min-width: 44px;
+}
+.search-item .add-btn:disabled {
+  background: var(--border);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+}
+.search-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+/* ===== Toast ===== */
+#toast {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 13px;
+  z-index: 2000;
+  display: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+#toast.success { background: #f0fdf4; color: var(--down); border: 1px solid #bbf7d0; }
+#toast.error { background: #fef2f2; color: var(--danger); border: 1px solid #fecaca; }
+#toast.info { background: #eff6ff; color: var(--primary); border: 1px solid #bfdbfe; }
+
+/* ===== Missing data dot ===== */
+.missing-dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--danger);
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.data-coverage {
+  margin-left: 5px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+/* ===== Virtualized detail rows ===== */
+.virtual-spacer td {
+  height: 0;
+  min-height: 0;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  position: static !important;
+}
+
+button:focus-visible,
+input:focus-visible,
+th[tabindex]:focus-visible,
+.more-menu-item:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ===== View toggle ===== */
+.view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--table-bg);
+  margin-left: 10px;
+  vertical-align: middle;
+}
+.view-toggle button {
+  border: none;
+  background: transparent;
+  padding: 5px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  min-height: 30px;
+}
+.view-toggle button + button { border-left: 1px solid var(--border); }
+.view-toggle button.active {
+  background: var(--primary);
+  color: #fff;
+}
+.view-toggle button:not(.active):hover { color: var(--primary); }
+
+body[data-view="ladder"] #addPoolBtn,
+body[data-view="ladder"] #marketStatus,
+body[data-view="ladder"] #lastUpdate,
+body[data-view="ladder"] #saveStatus,
+body[data-view="ladder"] #staleWarning { display: none; }
+
+/* ===== Ladder view ===== */
+#ladderView {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+#ladderView[hidden] { display: none; }
+#liveView[hidden] { display: none; }
+.ladder-date-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  background: var(--table-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+}
+.ladder-date-bar button {
+  min-height: 30px;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--table-bg);
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text);
+  white-space: nowrap;
+}
+.ladder-date-bar button:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+.ladder-date-bar button:disabled { opacity: 0.45; cursor: not-allowed; }
+#ladderDateSelect {
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--table-bg);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+#ladderStatus {
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+#ladderStatus.final { background: #f0fdf4; color: var(--down); }
+#ladderStatus.live { background: #eff6ff; color: var(--primary); }
+#ladderStatus.pending { background: #fff7ed; color: #c2410c; }
+#ladderMessage { font-size: 12px; color: var(--text-secondary); }
+#ladderMessage.error { color: var(--danger); }
+
+.tier-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.tier-card {
+  flex: 1 1 150px;
+  min-width: 150px;
+  max-width: 240px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--table-bg);
+  padding: 10px 12px;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.tier-card:hover { border-color: var(--primary); }
+.tier-card.selected {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(41, 112, 255, 0.18);
+}
+.tier-card .tier-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.tier-card .tier-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.tier-card .tier-rate {
+  font-size: 12px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.tier-card .tier-rate.na { color: var(--text-secondary); }
+
+.promotion-yes { color: var(--up); font-weight: 600; }
+.promotion-no { color: var(--down); }
+.promotion-pending, .promotion-unknown { color: var(--text-secondary); }
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+  #app {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+  .main-workspace {
+    overflow: visible;
+  }
+  .pool-section {
+    flex: none;
+    min-height: 300px;
+    overflow: visible;
+  }
+  .detail-section {
+    flex: none;
+    min-height: 300px;
+    overflow: visible;
+  }
+  #app { padding: 8px; }
+  header { flex-direction: column; align-items: flex-start; }
+  .header-right { width: 100%; }
+  header h1 { font-size: 16px; }
+  #poolTable { min-width: 700px; font-size: 13px; }
+  #detailTable { min-width: 500px; font-size: 13px; }
+  thead th { font-size: 12px; padding: 0 10px; height: 40px; }
+  tbody td { padding: 0 10px; height: 48px; }
+  .col-name { min-width: 100px; max-width: 140px; }
+  .pool-name-text { max-width: 120px; }
+  .modal-content { padding: 16px; width: 95%; }
+  #ladderView { flex: none; overflow: visible; }
+  .tier-card { flex: 1 1 calc(50% - 8px); max-width: none; }
+  #ladderTable { min-width: 460px; font-size: 13px; }
+}
+@media (max-width: 480px) {
+  .tier-card { flex: 1 1 100%; }
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header>
+    <div class="header-left">
+      <h1>A股看盘面板</h1>
+      <div class="view-toggle" role="tablist" aria-label="视图切换">
+        <button id="liveViewBtn" type="button" role="tab" aria-selected="true" class="active">实时看盘</button>
+        <button id="ladderViewBtn" type="button" role="tab" aria-selected="false">梯队回看</button>
+      </div>
+    </div>
+    <div class="header-right">
+      <span id="marketStatus" class="closed">已收盘</span>
+      <span id="automaticStatus"></span>
+      <span id="lastUpdate"></span>
+      <span id="saveStatus"></span>
+      <span id="staleWarning">数据可能已延迟</span>
+      <button id="refreshBtn">刷新</button>
+      <button id="addPoolBtn" class="primary">+ 新建个股池</button>
+    </div>
+  </header>
+
+  <div id="storageErrorBar" role="alert"></div>
+  <div id="errorBar" role="alert"></div>
+
+  <div class="main-workspace" id="liveView" role="tabpanel" aria-labelledby="liveViewBtn">
+    <div class="pool-section">
+      <div class="table-wrapper">
+        <table id="poolTable" role="grid" aria-label="个股池行情汇总">
+          <thead>
+            <tr>
+              <th class="col-name sortable" data-column="name" data-sort="name" aria-sort="none" tabindex="0" role="columnheader">个股池名称<span class="sort-arrow"></span></th>
+              <th class="col-num sortable" data-column="avgChange" data-sort="avgChange" aria-sort="none" tabindex="0" role="columnheader">平均涨跌幅<span class="sort-arrow"></span></th>
+              <th class="col-num sortable" data-column="limitUp" data-sort="limitUp" aria-sort="none" tabindex="0" role="columnheader">涨停数量<span class="sort-arrow"></span></th>
+              <th class="col-num sortable" data-column="limitDown" data-sort="limitDown" aria-sort="none" tabindex="0" role="columnheader">跌停数量<span class="sort-arrow"></span></th>
+              <th class="col-num sortable" data-column="total" data-sort="total" aria-sort="none" tabindex="0" role="columnheader">股票总数<span class="sort-arrow"></span></th>
+              <th class="col-num sortable" data-column="capitalInflow" data-sort="capitalInflow" aria-sort="none" tabindex="0" role="columnheader">资金净流入<span class="sort-arrow"></span></th>
+              <th class="col-num sortable" data-column="unitMarketCapFundFlow" data-sort="unitMarketCapFundFlow" aria-sort="none" tabindex="0" role="columnheader">每亿元流通市值净流入<span class="sort-arrow"></span></th>
+              <th class="col-num sortable" data-column="redRate" data-sort="redRate" aria-sort="none" tabindex="0" role="columnheader">红盘率<span class="sort-arrow"></span></th>
+              <th class="col-actions" data-column="actions" role="columnheader">操作</th>
+            </tr>
+          </thead>
+          <tbody id="poolTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="detailPanel" class="detail-section">
+      <div id="detailPanelHeader" class="detail-header">
+        <div class="detail-title-bar">
+          <span id="detailTitle"></span>
+          <span id="detailCount" class="detail-count"></span>
+        </div>
+        <div class="detail-actions">
+          <button id="detailAddStockBtn" type="button" disabled>+ 添加股票</button>
+        </div>
+      </div>
+      <div class="table-wrapper" id="detailTableWrapper">
+        <table id="detailTable" aria-label="个股池明细">
+          <thead>
+            <tr>
+              <th class="col-code sortable" data-column="code" data-sort="code" aria-sort="none" tabindex="0" role="columnheader">代码<span class="sort-arrow"></span></th>
+              <th class="col-stock-name sortable" data-column="name" data-sort="name" aria-sort="none" tabindex="0" role="columnheader">名称<span class="sort-arrow"></span></th>
+              <th class="col-num sortable" data-column="price" data-sort="price" aria-sort="none" tabindex="0" role="columnheader">最新价<span class="sort-arrow"></span></th>
+              <th class="col-num sortable" data-column="changePct" data-sort="changePct" aria-sort="none" tabindex="0" role="columnheader">涨跌幅<span class="sort-arrow"></span></th>
+              <th class="col-num sortable" data-column="circulatingMarketCap" data-sort="circulatingMarketCap" aria-sort="none" tabindex="0" role="columnheader">流通市值<span class="sort-arrow"></span></th>
+              <th class="col-num sortable" data-column="fundFlow" data-sort="fundFlow" aria-sort="none" tabindex="0" role="columnheader">资金净流入<span class="sort-arrow"></span></th>
+              <th class="col-num sortable" data-column="unitMarketCapFundFlow" data-sort="unitMarketCapFundFlow" aria-sort="none" tabindex="0" role="columnheader">每亿元流通市值净流入<span class="sort-arrow"></span></th>
+              <th class="col-actions" data-column="actions" role="columnheader">操作</th>
+            </tr>
+          </thead>
+          <tbody id="detailTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="ladderView" role="tabpanel" aria-labelledby="ladderViewBtn" hidden>
+    <div class="ladder-date-bar">
+      <button id="ladderPrevBtn" type="button" aria-label="前一交易日">&#9664; 前一交易日</button>
+      <select id="ladderDateSelect" aria-label="选择交易日"></select>
+      <button id="ladderNextBtn" type="button" aria-label="后一交易日">后一交易日 &#9654;</button>
+      <button id="ladderLatestBtn" type="button">回到最新</button>
+      <span id="ladderStatus" class="pending">待确认</span>
+      <span id="ladderMessage" role="status"></span>
+    </div>
+    <div id="tierCards" class="tier-cards" role="group" aria-label="涨停梯队"></div>
+    <div class="detail-section">
+      <div class="table-wrapper" id="ladderTableWrapper">
+        <table id="ladderTable" aria-label="梯队个股明细">
+          <thead>
+            <tr>
+              <th class="col-code" role="columnheader">代码</th>
+              <th class="col-stock-name" role="columnheader">名称</th>
+              <th class="col-num" role="columnheader">是否晋级</th>
+              <th class="col-num" role="columnheader">当日收盘价</th>
+              <th class="col-num" role="columnheader">涨跌幅</th>
+            </tr>
+          </thead>
+          <tbody id="ladderTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 新建个股池 -->
+<div id="addPoolModal" class="modal" role="dialog" aria-labelledby="addPoolTitle">
+  <div class="modal-content">
+    <h3 id="addPoolTitle">新建个股池</h3>
+    <input type="text" id="poolNameInput" placeholder="请输入个股池名称" maxlength="50">
+    <div id="poolNameError" class="form-error" aria-live="polite"></div>
+    <div class="modal-actions">
+      <button id="cancelAddPool">取消</button>
+      <button id="confirmAddPool" class="primary">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- 重命名 -->
+<div id="renameModal" class="modal" role="dialog" aria-labelledby="renameTitle">
+  <div class="modal-content">
+    <h3 id="renameTitle">重命名个股池</h3>
+    <input type="text" id="renameInput" placeholder="请输入新名称" maxlength="50">
+    <div id="renameError" class="form-error" aria-live="polite"></div>
+    <div class="modal-actions">
+      <button id="cancelRename">取消</button>
+      <button id="confirmRename" class="primary">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- 添加股票 -->
+<div id="addStockModal" class="modal" role="dialog" aria-labelledby="addStockTitle">
+  <div class="modal-content">
+    <h3 id="addStockTitle">添加股票到「<span id="addStockPoolName"></span>」</h3>
+    <input type="text" id="stockSearchInput" placeholder="输入股票代码或名称搜索">
+    <div id="searchResults"><div class="search-empty">输入关键词搜索股票</div></div>
+    <div class="modal-actions">
+      <button id="cancelAddStock">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 删除确认 -->
+<div id="deleteModal" class="modal" role="dialog" aria-labelledby="deleteTitle">
+  <div class="modal-content">
+    <h3 id="deleteTitle">确认删除</h3>
+    <p id="deleteConfirmText"></p>
+    <div class="modal-actions">
+      <button id="cancelDelete">取消</button>
+      <button id="confirmDelete" class="danger-btn">删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- 移除股票确认 -->
+<div id="removeStockModal" class="modal" role="dialog" aria-labelledby="removeStockTitle">
+  <div class="modal-content">
+    <h3 id="removeStockTitle">确认移除股票</h3>
+    <p id="removeStockConfirmText"></p>
+    <div class="modal-actions">
+      <button id="cancelRemoveStock">取消</button>
+      <button id="confirmRemoveStock" class="danger-btn">移除</button>
+    </div>
+  </div>
+</div>
+
+<!-- 更多菜单 -->
+<div id="moreMenu" class="more-menu" role="menu">
+  <button class="more-menu-item" data-action="refresh" role="menuitem">刷新个股池</button>
+  <button class="more-menu-item" data-action="rename" role="menuitem">重命名</button>
+  <button class="more-menu-item danger" data-action="delete" role="menuitem">删除</button>
+</div>
+
+<div id="toast" role="status"></div>
+
+<script src="/dashboard-core.js"></script>
+<script nonce="__DASHBOARD_NONCE__">
+// ==================== 常量配置 ====================
+const SORT_KEY = 'astock_sort_v1';
+const DETAIL_SORT_KEY = 'astock_detail_sort_v1';
+const SELECTED_POOL_KEY = 'astock_selected_pool_v1';
+const COLUMN_ORDER_KEY = 'astock_column_order_v1';
+const POOLS_API = '/api/pools';
+const QUOTES_API = '/api/quotes';
+const SEARCH_API = '/api/search';
+const FIRST_LIMIT_UP_API = '/api/first-limit-up';
+const LADDER_DATES_API = '/api/limit-up-history/dates';
+const LADDER_HISTORY_API = '/api/limit-up-history';
+const VIEW_KEY = 'astock_view_v1';
+const LADDER_DATE_KEY = 'astock_ladder_date_v1';
+const LADDER_TIER_KEY = 'astock_ladder_tier_v1';
+const POOL_FILTERS_KEY = 'astock_pool_filters_v1';
+const DASHBOARD_TOKEN = '__DASHBOARD_TOKEN__';
+const POOL_SYNC_INTERVAL = 1000;
+const REFRESH_INTERVAL = 5000;
+const MIN_REFRESH_IDLE = 250;
+const STALE_THRESHOLD = 30000;
+const DETAIL_ROW_HEIGHT = 44;
+const DETAIL_OVERSCAN = 12;
+const PROCESSING_CHUNK_SIZE = 500;
+const FLASH_FIELDS = ['avgChange', 'limitUp', 'limitDown', 'capitalInflow', 'unitMarketCapFundFlow', 'redRate'];
+const Core = window.DashboardCore;
+const parseNum = Core.parseNum;
+const formatPct = Core.formatPct;
+const formatMoney = Core.formatMoney;
+const formatMarketCap = Core.formatMarketCap;
+const formatUnitMarketCapFundFlow = Core.formatUnitMarketCapFundFlow;
+const getPreviousCloseMarketCap = Core.getPreviousCloseMarketCap;
+const calculateUnitMarketCapFundFlow = Core.calculateUnitMarketCapFundFlow;
+
+// ==================== 工具函数 ====================
+var sessionReloadScheduled = false;
+async function dashboardFetch(url, options) {
+  options = options || {};
+  var headers = new Headers(options.headers || {});
+  headers.set('X-Dashboard-Token', DASHBOARD_TOKEN);
+  options.headers = headers;
+  var response = await fetch(url, options);
+  if (response.status === 403 && !sessionReloadScheduled) {
+    sessionReloadScheduled = true;
+    showStorageError('应用会话已更新，页面即将重新载入');
+    setTimeout(function() { window.location.reload(); }, 500);
+  }
+  return response;
+}
+
+function formatTime(ts) {
+  const d = new Date(ts);
+  return d.getHours().toString().padStart(2,'0') + ':' +
+         d.getMinutes().toString().padStart(2,'0') + ':' +
+         d.getSeconds().toString().padStart(2,'0');
+}
+
+function formatDateTime(ts) {
+  if (!ts) return '--';
+  var d = new Date(ts);
+  return (d.getMonth() + 1).toString().padStart(2, '0') + '-' +
+         d.getDate().toString().padStart(2, '0') + ' ' + formatTime(ts);
+}
+
+var toastTimer = null;
+function showToast(msg, type) {
+  type = type || 'info';
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = type;
+  toast.style.display = 'block';
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function() { toast.style.display = 'none'; toastTimer = null; }, 2500);
+}
+
+function genId() { return 'pool_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6); }
+
+function el(tag, className, text) {
+  const e = document.createElement(tag);
+  if (className) e.className = className;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function setColumn(cell, column) {
+  cell.dataset.column = column;
+  return cell;
+}
+
+function isAutomaticPool(pool) {
+  return !!pool && pool.kind === 'automatic';
+}
+
+function isReservedAutomaticName(name) {
+  return name === '首板池' || /^\d+板池$/.test(String(name || ''));
+}
+
+// ==================== 自动池筛选（剔除ST / 主板） ====================
+var poolFilters = {};
+function loadPoolFilters() {
+  try {
+    var raw = localStorage.getItem(POOL_FILTERS_KEY);
+    poolFilters = raw ? JSON.parse(raw) || {} : {};
+  } catch (e) {
+    console.error('加载自动池筛选状态失败:', e);
+    poolFilters = {};
+  }
+}
+function savePoolFilters() {
+  try { localStorage.setItem(POOL_FILTERS_KEY, JSON.stringify(poolFilters)); }
+  catch (e) { console.error('保存自动池筛选状态失败:', e); }
+}
+function getPoolFilter(poolId) {
+  var f = poolFilters[poolId];
+  return { excludeST: !!(f && f.excludeST), mainBoardOnly: !!(f && f.mainBoardOnly) };
+}
+function togglePoolFilter(poolId, key) {
+  var f = getPoolFilter(poolId);
+  f[key] = !f[key];
+  poolFilters[poolId] = f;
+  savePoolFilters();
+  invalidateMetrics();
+  renderTable();
+  if (state.currentPoolId) renderDetailPanel(state.currentPoolId);
+}
+function getVisibleStocks(pool) {
+  if (!pool) return [];
+  if (!isAutomaticPool(pool)) return pool.stocks;
+  var f = getPoolFilter(pool.id);
+  if (!f.excludeST && !f.mainBoardOnly) return pool.stocks;
+  return pool.stocks.filter(function(s) {
+    if (f.excludeST && Core.isSTStock(s.name)) return false;
+    if (f.mainBoardOnly && !Core.isMainBoardStock(s.code)) return false;
+    return true;
+  });
+}
+
+// ==================== 数据层 ====================
+async function fetchQuotes(secids) {
+  if (!secids.length) return { quotes: {}, meta: { requestedCount: 0, receivedCount: 0, freshCount: 0, cachedCount: 0, partial: false, fetchedAt: Date.now() } };
+  var response = await dashboardFetch(QUOTES_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ secids: secids })
+  });
+  if (!response.ok) throw new Error(await getApiError(response, '行情请求失败'));
+  var data = await response.json();
+  var results = {};
+  var rows = Array.isArray(data.quotes) ? data.quotes : [];
+  for (var i = 0; i < rows.length; i++) {
+    var quote = rows[i];
+    quote.unitMarketCapFundFlow = calculateUnitMarketCapFundFlow(quote);
+    results[quote.secid] = quote;
+  }
+  return { quotes: results, meta: data };
+}
+
+var searchTimer = null;
+var searchRequestId = 0;
+async function searchStocks(keyword) {
+  if (!keyword || !keyword.trim()) return [];
+  var response = await dashboardFetch(SEARCH_API + '?q=' + encodeURIComponent(keyword.trim()), { cache: 'no-store' });
+  if (!response.ok) throw new Error(await getApiError(response, '搜索失败'));
+  var data = await response.json();
+  return Array.isArray(data.stocks) ? data.stocks : [];
+}
+
+// ==================== 状态 ====================
+var state = {
+  pools: [],
+  quotes: {},
+  sortBy: 'createdAt',
+  sortOrder: 'desc',
+  detailSortBy: null,
+  detailSortOrder: 'desc',
+  currentPoolId: null,
+  lastValidQuotes: {},
+  lastFetchTime: 0,
+  marketTime: 0,
+  quoteMeta: { requestedCount: 0, receivedCount: 0, freshCount: 0, cachedCount: 0, partial: false }
+};
+
+// 操作目标 — 与选中池分离
+var pendingRenamePoolId = null;
+var pendingDeletePoolId = null;
+var pendingAddStockPoolId = null;
+var pendingRemoveStock = null;
+
+// 快照 — 独立于DOM
+var previousMetricsByPool = {};
+var isFirstLoad = true;
+var skipNextFlash = false;
+// 待闪烁的单元格: Map<poolId, Map<field, 'up'|'down'>>
+var pendingFlash = new Map();
+var metricsCache = new Map();
+var poolFileETag = null;
+var poolStorageReady = false;
+var poolStorageBlocked = false;
+var pendingPoolSnapshot = null;
+var poolSaveInFlight = false;
+var poolStorageGeneration = 0;
+var poolPollTimer = null;
+var poolPollInFlight = false;
+var poolSaveRetryTimer = null;
+var committedPoolsSnapshot = [];
+
+// 行缓存 — keyed 增量渲染，避免每次刷新全量重建 DOM
+var poolRowCache = new Map();
+var detailRowCache = new Map();
+var detailRenderedPoolId = null;
+var detailVirtualStocks = [];
+var detailVirtualStart = -1;
+var detailVirtualEnd = -1;
+var detailScrollFrame = null;
+
+function yieldToBrowser() {
+  return new Promise(function(resolve) { requestAnimationFrame(function() { resolve(); }); });
+}
+
+function setCurrentPoolId(poolId) {
+  state.currentPoolId = poolId || null;
+  try { localStorage.setItem(SELECTED_POOL_KEY, state.currentPoolId || ''); } catch (e) {}
+}
+
+function clonePools(pools) {
+  return JSON.parse(JSON.stringify(pools || []));
+}
+
+function invalidateMetrics() {
+  metricsCache.clear();
+}
+
+function loadPreferences() {
+  try {
+    var sortRaw = localStorage.getItem(SORT_KEY);
+    if (sortRaw) {
+      var s = JSON.parse(sortRaw);
+      state.sortBy = s.sortBy || 'createdAt';
+      state.sortOrder = s.sortOrder || 'desc';
+    }
+    var detailRaw = localStorage.getItem(DETAIL_SORT_KEY);
+    if (detailRaw) {
+      var d = JSON.parse(detailRaw);
+      state.detailSortBy = d.detailSortBy || null;
+      state.detailSortOrder = d.detailSortOrder || 'desc';
+    }
+  } catch (e) { console.error('加载界面偏好失败:', e); }
+}
+
+function setSaveStatus(text, status) {
+  var el = document.getElementById('saveStatus');
+  el.textContent = text || '';
+  el.className = status || '';
+}
+
+function showStorageError(message) {
+  var bar = document.getElementById('storageErrorBar');
+  bar.textContent = message;
+  bar.style.display = 'block';
+}
+
+function clearStorageError() {
+  var bar = document.getElementById('storageErrorBar');
+  bar.textContent = '';
+  bar.style.display = 'none';
+}
+
+function updateAutomaticStatus(status) {
+  var el = document.getElementById('automaticStatus');
+  if (!el) return;
+  status = status || {};
+  var state = status.state;
+  var label = state === 'live' ? '自动池 盘中' : state === 'final' ? '自动池 收盘定版' : state === 'failed' ? '自动池 更新失败 · 最近有效 ' + (status.lastValidDate || '--') : '自动池 待回补';
+  el.textContent = label + (status.dataDate ? ' · ' + status.dataDate : '');
+  el.className = state === 'failed' ? 'error' : state === 'live' ? 'live' : '';
+  el.title = status.failureReason || label;
+}
+
+async function getApiError(response, fallback) {
+  try {
+    var body = await response.json();
+    if (body && body.error) return body.error;
+  } catch (e) {}
+  return fallback;
+}
+
+async function loadState() {
+  loadPreferences();
+  var response = await dashboardFetch(POOLS_API, { cache: 'no-store' });
+  if (!response.ok) throw new Error(await getApiError(response, '无法读取个股池文件'));
+  var data = await response.json();
+  updateAutomaticStatus(data.automaticStatus);
+  state.pools = Array.isArray(data.pools) ? data.pools : [];
+  try {
+    var savedPoolId = localStorage.getItem(SELECTED_POOL_KEY);
+    if (savedPoolId && state.pools.some(function(p) { return p.id === savedPoolId; })) {
+      state.currentPoolId = savedPoolId;
+    }
+  } catch (e) {}
+  invalidateMetrics();
+  committedPoolsSnapshot = clonePools(state.pools);
+  poolFileETag = response.headers.get('ETag');
+  poolStorageReady = true;
+  poolStorageBlocked = false;
+  clearStorageError();
+  setSaveStatus('清单已保存', 'saved');
+}
+
+function ensurePoolStorageWritable() {
+  if (!poolStorageReady || poolStorageBlocked) {
+    showToast('清单文件当前不可修改，请先修复文件错误', 'error');
+    return false;
+  }
+  return true;
+}
+
+function saveState(successMessage) {
+  if (!ensurePoolStorageWritable()) return;
+  var messages = pendingPoolSnapshot ? pendingPoolSnapshot.messages.slice() : [];
+  if (successMessage) messages.push(successMessage);
+  pendingPoolSnapshot = {
+    generation: poolStorageGeneration,
+    pools: clonePools(state.pools),
+    messages: messages
+  };
+  setSaveStatus('清单保存中', 'saving');
+  processPoolSaveQueue();
+}
+
+async function processPoolSaveQueue() {
+  if (poolSaveInFlight || !pendingPoolSnapshot || poolStorageBlocked) return;
+  if (poolSaveRetryTimer) { clearTimeout(poolSaveRetryTimer); poolSaveRetryTimer = null; }
+  var item = pendingPoolSnapshot;
+  pendingPoolSnapshot = null;
+  poolSaveInFlight = true;
+  try {
+    var headers = {
+      'Content-Type': 'application/json',
+      'X-Dashboard-Token': DASHBOARD_TOKEN
+    };
+    if (poolFileETag) headers['If-Match'] = poolFileETag;
+    var response = await dashboardFetch(POOLS_API, {
+      method: 'PUT',
+      headers: headers,
+      body: JSON.stringify({ version: 1, pools: item.pools })
+    });
+    if (response.status === 409) {
+      await reloadPoolsFromServer(true);
+      return;
+    }
+    if (!response.ok) {
+      var message = await getApiError(response, '清单保存失败');
+      if (response.status === 422) {
+        poolStorageBlocked = true;
+        pendingPoolSnapshot = null;
+        state.pools = clonePools(committedPoolsSnapshot);
+        invalidateMetrics();
+        resetPoolUiAfterExternalLoad();
+        showStorageError(message);
+      }
+      throw new Error(message);
+    }
+    if (item.generation === poolStorageGeneration) {
+      var savedDocument = await response.json();
+      poolFileETag = response.headers.get('ETag') || poolFileETag;
+      committedPoolsSnapshot = clonePools(Array.isArray(savedDocument.pools) ? savedDocument.pools : item.pools);
+      clearStorageError();
+      if (pendingPoolSnapshot) {
+        pendingPoolSnapshot.messages = item.messages.concat(pendingPoolSnapshot.messages || []);
+      } else {
+        state.pools = clonePools(committedPoolsSnapshot);
+        invalidateMetrics();
+        renderTable();
+        if (state.currentPoolId) renderDetailPanel(state.currentPoolId);
+        setSaveStatus('清单已保存', 'saved');
+        if (item.messages.length) showToast(item.messages[item.messages.length - 1], 'success');
+      }
+    }
+  } catch (e) {
+    console.error('清单保存失败:', e);
+    if (item.generation === poolStorageGeneration) {
+      setSaveStatus('清单保存失败', 'error');
+      if (!poolStorageBlocked) {
+        if (!pendingPoolSnapshot) {
+          pendingPoolSnapshot = item;
+        } else {
+          pendingPoolSnapshot.messages = item.messages.concat(pendingPoolSnapshot.messages || []);
+        }
+        showStorageError((e.message || '清单保存失败') + '，将自动重试');
+        poolSaveRetryTimer = setTimeout(processPoolSaveQueue, 2000);
+      }
+    }
+  } finally {
+    poolSaveInFlight = false;
+    if (pendingPoolSnapshot && !poolStorageBlocked && !poolSaveRetryTimer) processPoolSaveQueue();
+  }
+}
+
+function resetPoolUiAfterExternalLoad() {
+  previousMetricsByPool = {};
+  isFirstLoad = true;
+  skipNextFlash = false;
+  pendingFlash.clear();
+  if (!state.pools.some(function(p) { return p.id === state.currentPoolId; })) setCurrentPoolId(null);
+  var modals = document.querySelectorAll('.modal.show');
+  for (var i = 0; i < modals.length; i++) modals[i].classList.remove('show');
+  closeMoreMenu();
+  renderTable();
+  renderDetailPanel(state.currentPoolId);
+}
+
+async function reloadPoolsFromServer(isExternal) {
+  poolStorageGeneration++;
+  pendingPoolSnapshot = null;
+  if (poolSaveRetryTimer) { clearTimeout(poolSaveRetryTimer); poolSaveRetryTimer = null; }
+  try {
+    var response = await dashboardFetch(POOLS_API, { cache: 'no-store' });
+    if (!response.ok) {
+      var message = await getApiError(response, '无法重新读取个股池文件');
+      poolStorageBlocked = true;
+      setSaveStatus('清单文件错误', 'error');
+      showStorageError(message);
+      return;
+    }
+    var data = await response.json();
+    updateAutomaticStatus(data.automaticStatus);
+    state.pools = Array.isArray(data.pools) ? data.pools : [];
+    invalidateMetrics();
+    committedPoolsSnapshot = clonePools(state.pools);
+    poolFileETag = response.headers.get('ETag');
+    poolStorageReady = true;
+    poolStorageBlocked = false;
+    clearStorageError();
+    setSaveStatus('清单已保存', 'saved');
+    resetPoolUiAfterExternalLoad();
+    if (isExternal) showToast('已从外部文件重新载入', 'success');
+    refreshQuotes();
+  } catch (e) {
+    poolStorageBlocked = true;
+    setSaveStatus('清单读取失败', 'error');
+    showStorageError(e.message || '无法重新读取个股池文件');
+  }
+}
+
+async function pollPoolFile() {
+  if (poolPollInFlight || poolSaveInFlight || pendingPoolSnapshot) return;
+  poolPollInFlight = true;
+  try {
+    var headers = {};
+    if (poolFileETag && !poolStorageBlocked) headers['If-None-Match'] = poolFileETag;
+    var response = await dashboardFetch(POOLS_API, { headers: headers, cache: 'no-store' });
+    if (response.status === 304) return;
+    if (!response.ok) {
+      var message = await getApiError(response, '清单文件无法读取');
+      poolStorageBlocked = true;
+      setSaveStatus('清单文件错误', 'error');
+      showStorageError(message);
+      return;
+    }
+    var newETag = response.headers.get('ETag');
+    var data = await response.json();
+    updateAutomaticStatus(data.automaticStatus);
+    poolStorageGeneration++;
+    pendingPoolSnapshot = null;
+    state.pools = Array.isArray(data.pools) ? data.pools : [];
+    invalidateMetrics();
+    committedPoolsSnapshot = clonePools(state.pools);
+    poolFileETag = newETag;
+    poolStorageReady = true;
+    poolStorageBlocked = false;
+    clearStorageError();
+    setSaveStatus('已从外部文件重新载入', 'saved');
+    resetPoolUiAfterExternalLoad();
+    showToast('已从外部文件重新载入', 'success');
+    refreshQuotes();
+  } catch (e) {
+    setSaveStatus('清单同步失败', 'error');
+    showStorageError(e.message || '清单文件同步失败');
+  } finally {
+    poolPollInFlight = false;
+  }
+}
+
+function startPoolFileSync() {
+  if (poolPollTimer) clearInterval(poolPollTimer);
+  poolPollTimer = setInterval(pollPoolFile, POOL_SYNC_INTERVAL);
+}
+
+function saveSort() { localStorage.setItem(SORT_KEY, JSON.stringify({ sortBy: state.sortBy, sortOrder: state.sortOrder })); }
+function saveDetailSort() {
+  try { localStorage.setItem(DETAIL_SORT_KEY, JSON.stringify({ detailSortBy: state.detailSortBy, detailSortOrder: state.detailSortOrder })); }
+  catch (e) { console.error('保存明细排序失败:', e); }
+}
+
+// ==================== 个股池操作 ====================
+function createPool(name) {
+  if (!ensurePoolStorageWritable()) return false;
+  if (!name || !name.trim()) { showToast('请输入个股池名称', 'error'); return false; }
+  var trimmed = name.trim();
+  if (trimmed === '首板池') { showToast('「首板池」是系统自动池名称', 'error'); return false; }
+  if (state.pools.some(function(p) { return p.name === trimmed; })) { showToast('个股池名称已存在', 'error'); return false; }
+  state.pools.push({ id: genId(), name: trimmed, createdAt: Date.now(), stocks: [] });
+  invalidateMetrics();
+  saveState('创建成功'); renderTable();
+  return true;
+}
+
+function renamePool(id, newName) {
+  if (!ensurePoolStorageWritable()) return false;
+  if (!newName || !newName.trim()) { showToast('请输入名称', 'error'); return false; }
+  var trimmed = newName.trim();
+  if (state.pools.some(function(p) { return p.name === trimmed && p.id !== id; })) { showToast('名称已存在', 'error'); return false; }
+  var pool = state.pools.find(function(p) { return p.id === id; });
+  if (isAutomaticPool(pool)) { showToast('自动池不能重命名', 'error'); return false; }
+  if (pool) {
+    pool.name = trimmed;
+    saveState('重命名成功'); renderTable();
+    if (state.currentPoolId === id) renderDetailPanel(id);
+  }
+  return true;
+}
+
+function deletePool(id) {
+  if (!ensurePoolStorageWritable()) return;
+  var pool = state.pools.find(function(p) { return p.id === id; });
+  if (!pool) return;
+  if (isAutomaticPool(pool)) { showToast('自动池不能删除', 'error'); return; }
+  document.getElementById('deleteConfirmText').textContent = '确定删除「' + pool.name + '」吗？删除后不可恢复。';
+  pendingDeletePoolId = id;
+  openModal('deleteModal');
+}
+
+function doDeletePool() {
+  if (!ensurePoolStorageWritable()) return;
+  var id = pendingDeletePoolId;
+  if (!id) return;
+  var targetPool = state.pools.find(function(p) { return p.id === id; });
+  if (isAutomaticPool(targetPool)) { showToast('自动池不能删除', 'error'); closeModal('deleteModal'); return; }
+  state.pools = state.pools.filter(function(p) { return p.id !== id; });
+  invalidateMetrics();
+  delete previousMetricsByPool[id];
+  if (state.currentPoolId === id) {
+    setCurrentPoolId(null);
+  }
+  pendingDeletePoolId = null;
+  saveState('已删除个股池');
+  renderTable();
+  renderDetailPanel(state.currentPoolId);
+  closeModal('deleteModal');
+}
+
+function addStockToPool(poolId, stock) {
+  if (!ensurePoolStorageWritable()) return false;
+  var pool = state.pools.find(function(p) { return p.id === poolId; });
+  if (!pool) return false;
+  if (isAutomaticPool(pool)) { showToast('自动池不能手动添加股票', 'error'); return false; }
+  if (pool.stocks.some(function(s) { return s.secid === stock.secid; })) { showToast('该股票已在池中', 'error'); return false; }
+  pool.stocks.push({ secid: stock.secid, code: stock.code, name: stock.name });
+  invalidateMetrics();
+  saveState('股票添加成功');
+  renderTable();
+  if (state.currentPoolId === poolId) renderDetailPanel(poolId);
+  skipNextFlash = true;
+  refreshQuotes();
+  return true;
+}
+
+function requestRemoveStock(poolId, secid) {
+  if (!ensurePoolStorageWritable()) return;
+  var pool = state.pools.find(function(p) { return p.id === poolId; });
+  if (!pool) return;
+  if (isAutomaticPool(pool)) { showToast('自动池不能手动移除股票', 'error'); return; }
+  var stock = pool.stocks.find(function(s) { return s.secid === secid; });
+  if (!stock) return;
+  pendingRemoveStock = { poolId: poolId, secid: secid };
+  document.getElementById('removeStockConfirmText').textContent = '确定从「' + pool.name + '」移除「' + stock.name + '」吗？';
+  openModal('removeStockModal');
+}
+
+function removeStockFromPool() {
+  if (!ensurePoolStorageWritable() || !pendingRemoveStock) return;
+  var poolId = pendingRemoveStock.poolId;
+  var secid = pendingRemoveStock.secid;
+  var pool = state.pools.find(function(p) { return p.id === poolId; });
+  if (!pool) return;
+  if (isAutomaticPool(pool)) { showToast('自动池不能手动移除股票', 'error'); closeModal('removeStockModal'); return; }
+  pool.stocks = pool.stocks.filter(function(s) { return s.secid !== secid; });
+  invalidateMetrics();
+  pendingRemoveStock = null;
+  saveState('股票已移除');
+  // 更新快照，防止下次自动刷新时闪烁
+  var m = getPoolMetrics(pool);
+  previousMetricsByPool[poolId] = {
+    avgChange: m.avgChange, limitUp: m.limitUp, limitDown: m.limitDown,
+    capitalInflow: m.capitalInflow, unitMarketCapFundFlow: m.unitMarketCapFundFlow, redRate: m.redRate
+  };
+  renderTable();
+  if (state.currentPoolId === poolId) renderDetailPanel(poolId);
+  closeModal('removeStockModal');
+}
+
+// ==================== 指标计算 ====================
+function getPoolMetrics(pool) {
+  var filterKey = '';
+  if (isAutomaticPool(pool)) {
+    var f = getPoolFilter(pool.id);
+    if (f.excludeST) filterKey += 'xst';
+    if (f.mainBoardOnly) filterKey += 'mb';
+  }
+  var cacheKey = pool.id + '|' + filterKey;
+  if (metricsCache.has(cacheKey)) return metricsCache.get(cacheKey);
+  var metrics = Core.getPoolMetrics({ stocks: getVisibleStocks(pool) }, state.quotes, Date.now());
+  metricsCache.set(cacheKey, metrics);
+  return metrics;
+}
+
+// ==================== 快照对比 ====================
+function snapshotAndCompare() {
+  if (isFirstLoad) {
+    for (var i = 0; i < state.pools.length; i++) {
+      var pool = state.pools[i];
+      var m = getPoolMetrics(pool);
+      previousMetricsByPool[pool.id] = {
+        avgChange: m.avgChange, limitUp: m.limitUp, limitDown: m.limitDown,
+        capitalInflow: m.capitalInflow, unitMarketCapFundFlow: m.unitMarketCapFundFlow, redRate: m.redRate
+      };
+    }
+    isFirstLoad = false;
+    return;
+  }
+  if (skipNextFlash) {
+    skipNextFlash = false;
+    for (var j = 0; j < state.pools.length; j++) {
+      var pool2 = state.pools[j];
+      var m2 = getPoolMetrics(pool2);
+      previousMetricsByPool[pool2.id] = {
+        avgChange: m2.avgChange, limitUp: m2.limitUp, limitDown: m2.limitDown,
+        capitalInflow: m2.capitalInflow, unitMarketCapFundFlow: m2.unitMarketCapFundFlow, redRate: m2.redRate
+      };
+    }
+    return;
+  }
+  pendingFlash.clear();
+  for (var k = 0; k < state.pools.length; k++) {
+    var p = state.pools[k];
+    var prev = previousMetricsByPool[p.id];
+    if (!prev) continue;
+    var m3 = getPoolMetrics(p);
+    for (var fi = 0; fi < FLASH_FIELDS.length; fi++) {
+      var field = FLASH_FIELDS[fi];
+      var oldVal = prev[field];
+      var newVal = m3[field];
+      if (oldVal === null || newVal === null) continue;
+      if (oldVal === newVal) continue;
+      var delta = newVal - oldVal;
+      if (!pendingFlash.has(p.id)) pendingFlash.set(p.id, new Map());
+      pendingFlash.get(p.id).set(field, delta > 0 ? 'up' : 'down');
+    }
+    previousMetricsByPool[p.id] = {
+      avgChange: m3.avgChange, limitUp: m3.limitUp, limitDown: m3.limitDown,
+      capitalInflow: m3.capitalInflow, unitMarketCapFundFlow: m3.unitMarketCapFundFlow, redRate: m3.redRate
+    };
+  }
+}
+
+// ==================== 排序 ====================
+function getSortedPools() {
+  var pools = state.pools.slice();
+  var key = state.sortBy;
+  var order = state.sortOrder === 'asc' ? 1 : -1;
+  pools.sort(function(a, b) {
+    var va, vb;
+    if (key === 'createdAt') { va = a.createdAt; vb = b.createdAt; }
+    else if (key === 'name') { return order * a.name.localeCompare(b.name, 'zh'); }
+    else {
+      var ma = getPoolMetrics(a);
+      var mb = getPoolMetrics(b);
+      if (key === 'avgChange') { va = ma.avgChange; vb = mb.avgChange; }
+      else if (key === 'limitUp') { va = ma.limitUp; vb = mb.limitUp; }
+      else if (key === 'limitDown') { va = ma.limitDown; vb = mb.limitDown; }
+      else if (key === 'total') { va = ma.total; vb = mb.total; }
+      else if (key === 'capitalInflow') { va = ma.capitalInflow; vb = mb.capitalInflow; }
+      else if (key === 'unitMarketCapFundFlow') { va = ma.unitMarketCapFundFlow; vb = mb.unitMarketCapFundFlow; }
+      else if (key === 'redRate') { va = ma.redRate; vb = mb.redRate; }
+      else { va = a.createdAt; vb = b.createdAt; }
+      if (va === null && vb === null) return b.createdAt - a.createdAt;
+      if (va === null) return 1;
+      if (vb === null) return -1;
+    }
+    if (va === vb) return b.createdAt - a.createdAt;
+    return order * (va > vb ? 1 : -1);
+  });
+  return pools;
+}
+
+function getSortedStocks(poolStocks) {
+  var stocks = poolStocks.slice();
+  var key = state.detailSortBy;
+  if (!key) return stocks;
+  var order = state.detailSortOrder === 'asc' ? 1 : -1;
+  stocks.sort(function(a, b) {
+    if (key === 'code' || key === 'name') {
+      var textA = key === 'code' ? a.code : a.name;
+      var textB = key === 'code' ? b.code : b.name;
+      return order * textA.localeCompare(textB, key === 'name' ? 'zh' : undefined);
+    }
+    var quoteA = state.quotes[a.secid];
+    var quoteB = state.quotes[b.secid];
+    var valueA = quoteA && quoteA[key] !== null && quoteA[key] !== undefined ? quoteA[key] : null;
+    var valueB = quoteB && quoteB[key] !== null && quoteB[key] !== undefined ? quoteB[key] : null;
+    if (valueA === null && valueB === null) return 0;
+    if (valueA === null) return 1;
+    if (valueB === null) return -1;
+    if (valueA === valueB) return 0;
+    return order * (valueA > valueB ? 1 : -1);
+  });
+  return stocks;
+}
+
+// ==================== 渲染表格 ====================
+function getValClass(val) {
+  if (val === null) return 'val-na';
+  if (val > 0) return 'val-up';
+  if (val < 0) return 'val-down';
+  return 'val-flat';
+}
+
+// 仅在文本/类名变化时写 DOM；td 上缓存上次写入值
+function setTd(td, text, cls) {
+  if (td._lastText !== text) { td.textContent = text; td._lastText = text; }
+  if (td._lastCls !== cls) { td.className = cls; td._lastCls = cls; }
+}
+
+// 指标单元格（含覆盖率角标）。textContent 重写会清掉角标，因此文本变化时强制重建角标
+function setMetricCell(td, text, cls, coverage) {
+  if (td._lastText !== text || td._lastCls !== cls) {
+    td.textContent = text;
+    td.className = 'col-num ' + cls;
+    td._lastText = text;
+    td._lastCls = cls;
+    td._lastCoverage = undefined;
+  }
+  var covKey = coverage ? coverage.valid + '/' + coverage.total + '|' + coverage.label : '';
+  if (td._lastCoverage !== covKey) {
+    var existing = td.querySelector('.data-coverage');
+    if (existing) existing.remove();
+    if (coverage) appendCoverage(td, coverage.valid, coverage.total, coverage.label);
+    td._lastCoverage = covKey;
+  }
+}
+
+function setCellTitle(td, title) {
+  if (td.title !== title) td.title = title;
+}
+
+function createPoolRow(pool) {
+  var pid = pool.id;
+  var tr = el('tr');
+  tr.dataset.poolId = pid;
+  tr.tabIndex = -1;
+
+  var nameTd = el('td', 'col-name');
+  nameTd.dataset.poolId = pid;
+  nameTd.dataset.column = 'name';
+  var nameSpan = el('span', 'pool-name-text', pool.name);
+  nameSpan.title = pool.name;
+  nameTd.appendChild(nameSpan);
+  tr.appendChild(nameTd);
+
+  var cells = { name: nameTd };
+  var fields = ['avgChange', 'limitUp', 'limitDown', 'total', 'capitalInflow', 'unitMarketCapFundFlow', 'redRate'];
+  for (var i = 0; i < fields.length; i++) {
+    var td = makeMetricTd(pid, fields[i], '', 'val-flat');
+    cells[fields[i]] = td;
+    tr.appendChild(td);
+  }
+
+  var actionTd = el('td', 'col-actions');
+  actionTd.dataset.poolId = pid;
+  actionTd.dataset.column = 'actions';
+  var filterToggles = null;
+  if (isAutomaticPool(pool)) {
+    actionTd.appendChild(el('span', 'auto-pool-badge', '自动池'));
+    var filter = getPoolFilter(pid);
+    var stBtn = el('button', 'filter-toggle' + (filter.excludeST ? ' active' : ''), '剔除ST');
+    stBtn.type = 'button';
+    stBtn.title = '隐藏 ST 与 *ST 个股';
+    stBtn.setAttribute('aria-pressed', filter.excludeST ? 'true' : 'false');
+    stBtn.addEventListener('click', function(e) { e.stopPropagation(); togglePoolFilter(pid, 'excludeST'); });
+    actionTd.appendChild(stBtn);
+    var mbBtn = el('button', 'filter-toggle' + (filter.mainBoardOnly ? ' active' : ''), '主板');
+    mbBtn.type = 'button';
+    mbBtn.title = '只显示沪深主板个股';
+    mbBtn.setAttribute('aria-pressed', filter.mainBoardOnly ? 'true' : 'false');
+    mbBtn.addEventListener('click', function(e) { e.stopPropagation(); togglePoolFilter(pid, 'mainBoardOnly'); });
+    actionTd.appendChild(mbBtn);
+    filterToggles = { excludeST: stBtn, mainBoardOnly: mbBtn };
+  } else {
+    var addBtn = el('button', 'action-btn', '添加股票');
+    addBtn.addEventListener('click', function(e) { e.stopPropagation(); openAddStockModal(pid); });
+    actionTd.appendChild(addBtn);
+  }
+  var moreBtn = el('button', 'action-btn more-btn', '更多');
+  moreBtn.setAttribute('aria-label', '更多操作');
+  moreBtn.setAttribute('aria-haspopup', 'true');
+  moreBtn.title = '更多操作';
+  moreBtn.dataset.poolId = pid;
+  moreBtn.addEventListener('click', function(e) { e.stopPropagation(); toggleMoreMenu(e, pid); });
+  actionTd.appendChild(moreBtn);
+  tr.appendChild(actionTd);
+  cells.actions = actionTd;
+
+  tr.addEventListener('click', function(e) {
+    if (e.target.closest('button, .more-menu, .col-actions')) return;
+    selectPool(pid);
+    tr.focus({ preventScroll: true });
+  });
+  tr.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      movePoolSelection(pid, e.key === 'ArrowDown' ? 1 : -1);
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      selectPool(pid);
+    }
+  });
+
+  if (columnOrders.poolTable) reorderRowCells(tr, columnOrders.poolTable);
+
+  return { tr: tr, cells: cells, nameSpan: nameSpan, filterToggles: filterToggles };
+}
+
+function updatePoolRow(entry, pool, m) {
+  if (entry.nameSpan.textContent !== pool.name) {
+    entry.nameSpan.textContent = pool.name;
+    entry.nameSpan.title = pool.name;
+  }
+  var selected = pool.id === state.currentPoolId;
+  entry.tr.classList.toggle('selected', selected);
+  entry.tr.setAttribute('aria-selected', selected ? 'true' : 'false');
+  entry.tr.tabIndex = selected ? 0 : -1;
+
+  if (entry.filterToggles) {
+    var filter = getPoolFilter(pool.id);
+    entry.filterToggles.excludeST.classList.toggle('active', filter.excludeST);
+    entry.filterToggles.excludeST.setAttribute('aria-pressed', filter.excludeST ? 'true' : 'false');
+    entry.filterToggles.mainBoardOnly.classList.toggle('active', filter.mainBoardOnly);
+    entry.filterToggles.mainBoardOnly.setAttribute('aria-pressed', filter.mainBoardOnly ? 'true' : 'false');
+  }
+
+  var unknownTip = m.limitUnknown > 0 ? m.limitUnknown + ' 只股票的涨跌停规则暂无法可靠判断，未计入' : '';
+  setMetricCell(entry.cells.avgChange, formatPct(m.avgChange), getValClass(m.avgChange),
+    m.validCount < m.total ? { valid: m.validCount, total: m.total, label: '有效行情' } : null);
+  setMetricCell(entry.cells.limitUp, String(m.limitUp), m.limitUp > 0 ? 'val-up' : 'val-flat', null);
+  setCellTitle(entry.cells.limitUp, unknownTip);
+  setMetricCell(entry.cells.limitDown, String(m.limitDown), m.limitDown > 0 ? 'val-down' : 'val-flat', null);
+  setCellTitle(entry.cells.limitDown, unknownTip);
+  setMetricCell(entry.cells.total, String(m.total), 'val-flat', null);
+  setMetricCell(entry.cells.capitalInflow,
+    m.capitalInflow !== null ? (m.capitalInflow >= 0 ? '+' : '') + formatMoney(m.capitalInflow) : '--',
+    getValClass(m.capitalInflow),
+    m.missingFund > 0 ? { valid: m.fundValidCount, total: m.total, label: '资金数据' } : null);
+  setMetricCell(entry.cells.unitMarketCapFundFlow, formatUnitMarketCapFundFlow(m.unitMarketCapFundFlow), getValClass(m.unitMarketCapFundFlow), null);
+  setMetricCell(entry.cells.redRate, m.redRate !== null ? m.redRate.toFixed(2) + '%' : '--', getValClass(m.redRate), null);
+}
+
+function renderTable() {
+  var tbody = document.getElementById('poolTableBody');
+  var pools = getSortedPools();
+
+  if (!pools.length) {
+    poolRowCache.clear();
+    tbody.innerHTML = '';
+    var tr = el('tr');
+    var td = el('td', 'empty-cell');
+    td.colSpan = 9;
+    var wrapper = el('div');
+    wrapper.appendChild(el('p', 'empty-title', '还没有个股池'));
+    wrapper.appendChild(el('p', null, '创建一个个股池来跟踪你关注的股票组合'));
+    var btn = el('button', null, '+ 新建个股池');
+    btn.addEventListener('click', function() {
+      document.getElementById('poolNameInput').value = '';
+      updateAddPoolValidity();
+      openModal('addPoolModal');
+      setTimeout(function() { document.getElementById('poolNameInput').focus(); }, 100);
+    });
+    wrapper.appendChild(btn);
+    td.appendChild(wrapper);
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
+
+  // 清掉空态/骨架等非数据行（缓存行节点仍在，会按排序顺序重新挂载）
+  if (tbody.querySelector('.empty-cell, .skeleton-cell')) tbody.innerHTML = '';
+
+  var seen = {};
+  var desiredRows = [];
+  for (var i = 0; i < pools.length; i++) {
+    var pool = pools[i];
+    seen[pool.id] = true;
+    var m = getPoolMetrics(pool);
+    var entry = poolRowCache.get(pool.id);
+    if (!entry) {
+      entry = createPoolRow(pool);
+      poolRowCache.set(pool.id, entry);
+    }
+    updatePoolRow(entry, pool, m);
+    desiredRows.push(entry.tr);
+  }
+  poolRowCache.forEach(function(entry, id) {
+    if (!seen[id]) {
+      if (entry.tr.parentNode) entry.tr.parentNode.removeChild(entry.tr);
+      poolRowCache.delete(id);
+    }
+  });
+  if (!state.currentPoolId && desiredRows.length) desiredRows[0].tabIndex = 0;
+
+  var currentRows = tbody.querySelectorAll('tr[data-pool-id]');
+  var orderChanged = currentRows.length !== desiredRows.length;
+  for (var ri = 0; !orderChanged && ri < desiredRows.length; ri++) {
+    if (currentRows[ri] !== desiredRows[ri]) orderChanged = true;
+  }
+  if (orderChanged) {
+    var fragment = document.createDocumentFragment();
+    for (var di = 0; di < desiredRows.length; di++) fragment.appendChild(desiredRows[di]);
+    tbody.replaceChildren(fragment);
+  }
+
+  // 应用闪烁
+  applyPendingFlash();
+}
+
+function makeMetricTd(poolId, field, text, cls) {
+  var td = el('td', 'col-num ' + cls, text);
+  td.dataset.poolId = poolId;
+  td.dataset.field = field;
+  td.dataset.column = field;
+  return td;
+}
+
+function appendCoverage(cell, valid, total, label) {
+  var coverage = el('span', 'data-coverage', valid + '/' + total);
+  coverage.title = label + '覆盖 ' + valid + '/' + total;
+  cell.appendChild(coverage);
+}
+
+function applyPendingFlash() {
+  if (pendingFlash.size === 0) return;
+  var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reducedMotion) { pendingFlash.clear(); return; }
+  pendingFlash.forEach(function(fields, poolId) {
+    fields.forEach(function(direction, field) {
+      var cell = document.querySelector('td[data-pool-id="' + poolId + '"][data-field="' + field + '"]');
+      if (cell) {
+        var cls = direction === 'up' ? 'metric-flash-up' : 'metric-flash-down';
+        cell.classList.remove(cls);
+        // 强制重排以重新触发动画
+        void cell.offsetWidth;
+        cell.classList.add(cls);
+        cell.addEventListener('animationend', function() { cell.classList.remove(cls); }, { once: true });
+      }
+    });
+  });
+  pendingFlash.clear();
+}
+
+// ==================== 选中个股池 ====================
+function selectPool(poolId, options) {
+  options = options || {};
+  var pool = state.pools.find(function(p) { return p.id === poolId; });
+  if (!pool) {
+    setCurrentPoolId(null);
+    updateSelectedRow();
+    renderDetailPanel(null);
+    return;
+  }
+  setCurrentPoolId(poolId);
+  updateSelectedRow();
+  renderDetailPanel(poolId);
+  if (options.scroll) {
+    var panel = document.getElementById('detailPanel');
+    var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    panel.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'nearest' });
+  }
+}
+
+function movePoolSelection(poolId, direction) {
+  var pools = getSortedPools();
+  var index = pools.findIndex(function(pool) { return pool.id === poolId; });
+  if (index < 0) return;
+  var nextIndex = Math.max(0, Math.min(pools.length - 1, index + direction));
+  if (nextIndex === index) return;
+  var nextId = pools[nextIndex].id;
+  selectPool(nextId);
+  var entry = poolRowCache.get(nextId);
+  if (entry) {
+    entry.tr.focus({ preventScroll: true });
+    entry.tr.scrollIntoView({ block: 'nearest' });
+  }
+}
+
+function updateSelectedRow() {
+  var rows = document.querySelectorAll('#poolTableBody tr');
+  for (var i = 0; i < rows.length; i++) {
+    var tr = rows[i];
+    if (tr.dataset.poolId === state.currentPoolId) {
+      tr.classList.add('selected');
+      tr.setAttribute('aria-selected', 'true');
+      tr.tabIndex = 0;
+    } else {
+      tr.classList.remove('selected');
+      tr.setAttribute('aria-selected', 'false');
+      tr.tabIndex = -1;
+    }
+  }
+}
+
+function createDetailRow(poolId, stock) {
+  var secid = stock.secid;
+  var tr = el('tr');
+  var cells = {};
+
+  cells.code = setColumn(el('td', 'col-code', stock.code), 'code');
+  tr.appendChild(cells.code);
+
+  var nameTd = el('td', 'col-stock-name');
+  nameTd.dataset.column = 'name';
+  var nameSpan = el('span', 'stock-name-text', stock.name);
+  nameSpan.title = stock.name;
+  nameTd.appendChild(nameSpan);
+  tr.appendChild(nameTd);
+  cells.name = nameTd;
+
+  var fields = ['price', 'changePct', 'circulatingMarketCap', 'fundFlow', 'unitMarketCapFundFlow'];
+  for (var i = 0; i < fields.length; i++) {
+    var td = setColumn(el('td', 'col-num'), fields[i]);
+    cells[fields[i]] = td;
+    tr.appendChild(td);
+  }
+
+  var actionTd = el('td', 'col-actions');
+  actionTd.dataset.column = 'actions';
+  var detailPool = state.pools.find(function(p) { return p.id === poolId; });
+  if (isAutomaticPool(detailPool)) {
+    actionTd.appendChild(el('span', 'auto-pool-badge', '自动'));
+  } else {
+    var removeBtn = el('button', 'remove-btn', '移除');
+    removeBtn.addEventListener('click', function() { requestRemoveStock(poolId, secid); });
+    actionTd.appendChild(removeBtn);
+  }
+  tr.appendChild(actionTd);
+  cells.actions = actionTd;
+
+  if (columnOrders.detailTable) reorderRowCells(tr, columnOrders.detailTable);
+
+  return { tr: tr, cells: cells, nameSpan: nameSpan };
+}
+
+function updateDetailRow(entry, stock, q) {
+  setTd(entry.cells.code, stock.code, 'col-code');
+  if (entry.nameSpan.textContent !== stock.name) {
+    entry.nameSpan.textContent = stock.name;
+    entry.nameSpan.title = stock.name;
+  }
+  var changePct = q && q.changePct !== null && q.changePct !== undefined ? q.changePct : null;
+  var valCls = 'col-num ' + getValClass(changePct);
+  setTd(entry.cells.price, q && q.price !== null && q.price !== undefined ? q.price.toFixed(2) : '--', valCls);
+  setTd(entry.cells.changePct, changePct !== null ? formatPct(changePct) : '--', valCls);
+  setTd(entry.cells.circulatingMarketCap, formatMarketCap(q && q.circulatingMarketCap !== null ? q.circulatingMarketCap : null), 'col-num');
+  var ff = q && q.fundFlow !== null && q.fundFlow !== undefined ? q.fundFlow : null;
+  setTd(entry.cells.fundFlow, ff !== null ? (ff >= 0 ? '+' : '') + formatMoney(ff) : '--', 'col-num ' + getValClass(ff));
+  var umff = q && q.unitMarketCapFundFlow !== null && q.unitMarketCapFundFlow !== undefined ? q.unitMarketCapFundFlow : null;
+  setTd(entry.cells.unitMarketCapFundFlow, formatUnitMarketCapFundFlow(umff), 'col-num ' + getValClass(umff));
+}
+
+function renderDetailEmptyState(tbody, pool, filteredEmpty) {
+  tbody.innerHTML = '';
+  var tr = el('tr');
+  var td = el('td', 'detail-empty-cell');
+  td.colSpan = 8;
+  if (!pool) {
+    td.textContent = '请选择上方个股池查看池内股票';
+  } else if (filteredEmpty) {
+    td.appendChild(el('p', null, '筛选后无可见股票'));
+  } else {
+    td.appendChild(el('p', null, '该个股池暂无股票'));
+    if (!isAutomaticPool(pool)) {
+      var btn = el('button', 'action-btn', '添加股票');
+      btn.style.cssText = 'background:var(--primary);color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:13px;cursor:pointer;min-height:36px;margin-top:8px;';
+      btn.addEventListener('click', function() { openAddStockModal(pool.id); });
+      td.appendChild(btn);
+    }
+  }
+  tr.appendChild(td);
+  tbody.appendChild(tr);
+}
+
+// ==================== 明细面板 ====================
+function createVirtualSpacer(height) {
+  var tr = el('tr', 'virtual-spacer');
+  var td = el('td');
+  td.colSpan = 8;
+  td.style.height = Math.max(0, height) + 'px';
+  tr.appendChild(td);
+  return tr;
+}
+
+function renderVisibleDetailRows(force) {
+  var tbody = document.getElementById('detailTableBody');
+  var wrapper = document.getElementById('detailTableWrapper');
+  var poolId = detailRenderedPoolId;
+  if (!poolId || !detailVirtualStocks.length) return;
+
+  var headerHeight = document.querySelector('#detailTable thead').offsetHeight || 40;
+  var contentScrollTop = Math.max(0, wrapper.scrollTop - headerHeight);
+  var viewportRows = Math.ceil(wrapper.clientHeight / DETAIL_ROW_HEIGHT);
+  var start = Math.max(0, Math.floor(contentScrollTop / DETAIL_ROW_HEIGHT) - DETAIL_OVERSCAN);
+  start = Math.min(start, Math.max(0, detailVirtualStocks.length - viewportRows - DETAIL_OVERSCAN));
+  var end = Math.min(detailVirtualStocks.length, start + viewportRows + DETAIL_OVERSCAN * 2);
+  if (!force && start === detailVirtualStart && end === detailVirtualEnd) return;
+
+  detailVirtualStart = start;
+  detailVirtualEnd = end;
+  var nextCache = new Map();
+  var fragment = document.createDocumentFragment();
+  if (start > 0) fragment.appendChild(createVirtualSpacer(start * DETAIL_ROW_HEIGHT));
+
+  for (var i = start; i < end; i++) {
+    var stock = detailVirtualStocks[i];
+    var entry = detailRowCache.get(stock.secid);
+    if (!entry) entry = createDetailRow(poolId, stock);
+    updateDetailRow(entry, stock, state.quotes[stock.secid]);
+    nextCache.set(stock.secid, entry);
+    fragment.appendChild(entry.tr);
+  }
+  if (end < detailVirtualStocks.length) {
+    fragment.appendChild(createVirtualSpacer((detailVirtualStocks.length - end) * DETAIL_ROW_HEIGHT));
+  }
+
+  tbody.replaceChildren(fragment);
+  detailRowCache = nextCache;
+}
+
+function renderDetailPanel(poolId, options) {
+  options = options || {};
+  var titleEl = document.getElementById('detailTitle');
+  var countEl = document.getElementById('detailCount');
+  var addButton = document.getElementById('detailAddStockBtn');
+  var tbody = document.getElementById('detailTableBody');
+  var wrapper = document.getElementById('detailTableWrapper');
+
+  var pool = poolId ? state.pools.find(function(p) { return p.id === poolId; }) : null;
+  if (!pool) {
+    if (poolId) {
+      setCurrentPoolId(null);
+      updateSelectedRow();
+    }
+    detailRowCache.clear();
+    detailRenderedPoolId = null;
+    detailVirtualStocks = [];
+    detailVirtualStart = -1;
+    detailVirtualEnd = -1;
+    titleEl.textContent = '';
+    countEl.textContent = '';
+    addButton.disabled = true;
+    renderDetailEmptyState(tbody, null);
+    return;
+  }
+
+  var poolChanged = detailRenderedPoolId !== poolId;
+  titleEl.textContent = pool.name + (isAutomaticPool(pool) && pool.dataDate ? ' · ' + pool.dataDate : '') + ' · 个股明细';
+  var visibleStocks = getVisibleStocks(pool);
+  var countText = visibleStocks.length === pool.stocks.length
+    ? '共 ' + pool.stocks.length + ' 只'
+    : '显示 ' + visibleStocks.length + ' / 共 ' + pool.stocks.length + ' 只';
+  if (countEl.textContent !== countText) countEl.textContent = countText;
+  addButton.disabled = isAutomaticPool(pool);
+
+  if (!visibleStocks.length) {
+    detailRowCache.clear();
+    detailRenderedPoolId = poolId;
+    detailVirtualStocks = [];
+    detailVirtualStart = -1;
+    detailVirtualEnd = -1;
+    renderDetailEmptyState(tbody, pool, pool.stocks.length > 0);
+    return;
+  }
+
+  if (poolChanged) {
+    detailRowCache.clear();
+    detailRenderedPoolId = poolId;
+    wrapper.scrollTop = 0;
+  } else if (options.resetScroll) {
+    wrapper.scrollTop = 0;
+  }
+  detailVirtualStocks = getSortedStocks(visibleStocks);
+  detailVirtualStart = -1;
+  detailVirtualEnd = -1;
+  renderVisibleDetailRows(true);
+}
+
+// ==================== 更多菜单 ====================
+var moreMenuPoolId = null;
+function toggleMoreMenu(e, poolId) {
+  var menu = document.getElementById('moreMenu');
+  if (menu.classList.contains('show') && moreMenuPoolId === poolId) {
+    menu.classList.remove('show');
+    moreMenuPoolId = null;
+    return;
+  }
+  moreMenuPoolId = poolId;
+  var pool = state.pools.find(function(p) { return p.id === poolId; });
+  var refreshItem = menu.querySelector('[data-action="refresh"]');
+  if (refreshItem) refreshItem.style.display = isAutomaticPool(pool) ? '' : 'none';
+  var renameItem = menu.querySelector('[data-action="rename"]');
+  if (renameItem) renameItem.style.display = isAutomaticPool(pool) ? 'none' : '';
+  var btn = e.currentTarget;
+  var rect = btn.getBoundingClientRect();
+  menu.style.top = (rect.bottom + 4) + 'px';
+  menu.style.right = (window.innerWidth - rect.right) + 'px';
+  menu.style.left = 'auto';
+  menu.classList.add('show');
+}
+function closeMoreMenu() {
+  document.getElementById('moreMenu').classList.remove('show');
+  moreMenuPoolId = null;
+}
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('#moreMenu') && !e.target.closest('.more-btn')) closeMoreMenu();
+});
+document.getElementById('moreMenu').addEventListener('click', function(e) {
+  var action = e.target.dataset.action;
+  if (!action || !moreMenuPoolId) return;
+  var pid = moreMenuPoolId;
+  closeMoreMenu();
+  if (action === 'refresh') refreshLimitUpPools();
+  else if (action === 'rename') openRenameModal(pid);
+  else if (action === 'delete') deletePool(pid);
+});
+
+// ==================== 状态栏 ====================
+function updateMarketStatus() {
+  var e = document.getElementById('marketStatus');
+  var phase = Core.getMarketPhase(Date.now(), state.marketTime, STALE_THRESHOLD);
+  if (phase === 'trading') { e.textContent = '交易中'; e.className = 'open'; }
+  else if (phase === 'delayed') { e.textContent = '交易时段'; e.className = 'waiting'; }
+  else if (phase === 'waiting') { e.textContent = '等待行情'; e.className = 'waiting'; }
+  else if (phase === 'preopen') { e.textContent = '未开盘'; e.className = 'closed'; }
+  else if (phase === 'lunch') { e.textContent = '午间休市'; e.className = 'closed'; }
+  else if (phase === 'closed') { e.textContent = '已收盘'; e.className = 'closed'; }
+  else { e.textContent = '休市'; e.className = 'closed'; }
+}
+function updateLastUpdate() {
+  var e = document.getElementById('lastUpdate');
+  if (!state.marketTime && !state.lastFetchTime) { e.textContent = ''; return; }
+  var meta = state.quoteMeta || {};
+  e.textContent = '行情: ' + formatDateTime(state.marketTime) + ' · 覆盖: ' +
+    (meta.receivedCount || 0) + '/' + (meta.requestedCount || 0);
+  e.title = '获取时间: ' + formatDateTime(state.lastFetchTime) +
+    '；实时 ' + (meta.freshCount || 0) + '；缓存 ' + (meta.cachedCount || 0) +
+    '；来源: ' + (meta.source || '东方财富');
+}
+function updateStaleWarning() {
+  var e = document.getElementById('staleWarning');
+  var phase = Core.getMarketPhase(Date.now(), state.marketTime, STALE_THRESHOLD);
+  if (phase === 'delayed') {
+    e.textContent = '行情数据可能已延迟';
+    e.style.display = 'inline';
+  } else { e.style.display = 'none'; }
+}
+
+// ==================== 骨架屏 ====================
+function showSkeleton() {
+  var tbody = document.getElementById('poolTableBody');
+  tbody.innerHTML = '';
+  var columns = ['name', 'avgChange', 'limitUp', 'limitDown', 'total', 'capitalInflow', 'unitMarketCapFundFlow', 'redRate', 'actions'];
+  for (var i = 0; i < 3; i++) {
+    var tr = el('tr');
+    var widths = [80, 70, 50, 50, 50, 70, 100, 60, 100];
+    for (var j = 0; j < 9; j++) {
+      var td = el('td', j === 0 ? 'col-name' : j === 8 ? 'col-actions' : 'col-num');
+      td.dataset.column = columns[j];
+      var sk = el('div', 'skeleton-cell');
+      sk.style.width = widths[j] + 'px';
+      td.appendChild(sk);
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+  applyColumnOrder('poolTable');
+}
+
+// ==================== 数据刷新 ====================
+var isRefreshing = false;
+var refreshRequestId = 0;
+var refreshPending = false;
+var refreshTimer = null;
+var autoRefreshEnabled = false;
+
+function scheduleNextAutoRefresh(delay) {
+  if (refreshTimer) clearTimeout(refreshTimer);
+  refreshTimer = null;
+  if (!autoRefreshEnabled || document.hidden) return;
+  refreshTimer = setTimeout(runAutoRefreshTick, Math.max(MIN_REFRESH_IDLE, delay));
+}
+
+function runAutoRefreshTick() {
+  refreshTimer = null;
+  if (!autoRefreshEnabled || document.hidden) return;
+  if (currentView === 'ladder') {
+    // 梯队回看视图下暂停行情轮询，由梯队自身的轮询驱动
+    scheduleNextAutoRefresh(REFRESH_INTERVAL);
+    return;
+  }
+  if (Core.isPollingWindow(Date.now())) {
+    refreshQuotes('auto');
+    refreshLimitUpPools({ silent: true });
+  } else {
+    updateMarketStatus();
+    updateStaleWarning();
+    scheduleNextAutoRefresh(REFRESH_INTERVAL);
+  }
+}
+
+async function refreshQuotes(source) {
+  source = source || 'manual';
+  if (isRefreshing) {
+    refreshPending = true;
+    var queuedButton = document.getElementById('refreshBtn');
+    queuedButton.innerHTML = '<span class="spinner"></span>已排队';
+    return;
+  }
+  if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
+  var secidSet = new Set();
+  for (var i = 0; i < state.pools.length; i++) {
+    for (var j = 0; j < state.pools[i].stocks.length; j++) {
+      secidSet.add(state.pools[i].stocks[j].secid);
+    }
+  }
+  var secids = Array.from(secidSet);
+  if (!secids.length) {
+    state.quotes = {};
+    state.lastValidQuotes = {};
+    state.marketTime = 0;
+    state.quoteMeta = { requestedCount: 0, receivedCount: 0, freshCount: 0, cachedCount: 0, partial: false };
+    renderTable(); renderDetailPanel(state.currentPoolId); updateLastUpdate(); updateMarketStatus();
+    scheduleNextAutoRefresh(REFRESH_INTERVAL);
+    return;
+  }
+
+  isRefreshing = true;
+  var refreshStartedAt = performance.now();
+  var requestId = ++refreshRequestId;
+  var refreshBtn = document.getElementById('refreshBtn');
+  refreshBtn.setAttribute('aria-busy', 'true');
+  refreshBtn.innerHTML = '<span class="spinner"></span>刷新中';
+  var errorBar = document.getElementById('errorBar');
+
+  try {
+    var result = await fetchQuotes(secids);
+    if (requestId !== refreshRequestId) return;
+    var mergedQuotes = {};
+    var latestMarketTime = 0;
+    for (var si = 0; si < secids.length; si++) {
+      var secid = secids[si];
+      var quote = result.quotes[secid];
+      if (quote) {
+        mergedQuotes[secid] = quote;
+        if ((quote.timestamp || 0) > latestMarketTime) latestMarketTime = quote.timestamp;
+      }
+      if (si > 0 && si % PROCESSING_CHUNK_SIZE === 0) await yieldToBrowser();
+    }
+    state.quotes = mergedQuotes;
+    state.lastValidQuotes = Object.assign({}, mergedQuotes);
+    invalidateMetrics();
+    state.quoteMeta = result.meta || {};
+    state.lastFetchTime = state.quoteMeta.fetchedAt || Date.now();
+    state.marketTime = latestMarketTime;
+    var marketPhase = Core.getMarketPhase(Date.now(), state.marketTime, STALE_THRESHOLD);
+    var meta = state.quoteMeta;
+    if (meta.liveUnavailable && (marketPhase === 'trading' || marketPhase === 'delayed' || marketPhase === 'waiting')) {
+      errorBar.textContent = '实时行情获取失败，当前无实时数据（显示 --）。请检查网络或行情数据源。';
+      errorBar.style.display = 'block';
+    } else if (meta.partial && (marketPhase === 'trading' || marketPhase === 'delayed' || marketPhase === 'waiting')) {
+      errorBar.textContent = '部分行情未能实时更新：实时 ' + (meta.freshCount || 0) + ' / 总 ' + (meta.requestedCount || secids.length) + '，其余显示 --。';
+      errorBar.style.display = 'block';
+    } else {
+      errorBar.style.display = 'none';
+    }
+    updateMarketStatus();
+    updateLastUpdate();
+    updateStaleWarning();
+    await yieldToBrowser();
+    snapshotAndCompare();
+  } catch (e) {
+    if (requestId !== refreshRequestId) return;
+    state.quotes = state.lastValidQuotes;
+    invalidateMetrics();
+    errorBar.textContent = '数据更新失败，显示最近一次有效数据。点击"刷新"重试。';
+    errorBar.style.display = 'block';
+  }
+
+  try {
+    renderTable();
+    updateMarketStatus();
+    updateLastUpdate();
+    updateStaleWarning();
+    await yieldToBrowser();
+    if (state.currentPoolId) renderDetailPanel(state.currentPoolId);
+  } finally {
+    if (requestId === refreshRequestId) {
+      isRefreshing = false;
+      refreshBtn.removeAttribute('aria-busy');
+      refreshBtn.textContent = '刷新';
+    }
+    if (refreshPending) {
+      refreshPending = false;
+      refreshTimer = setTimeout(function() { refreshQuotes('queued'); }, MIN_REFRESH_IDLE);
+    } else {
+      var elapsed = performance.now() - refreshStartedAt;
+      scheduleNextAutoRefresh(Math.max(MIN_REFRESH_IDLE, REFRESH_INTERVAL - elapsed));
+    }
+  }
+}
+
+// ==================== 自动刷新 ====================
+function startAutoRefresh() {
+  autoRefreshEnabled = true;
+  if (!isRefreshing) scheduleNextAutoRefresh(REFRESH_INTERVAL);
+}
+function stopAutoRefresh() {
+  autoRefreshEnabled = false;
+  if (refreshTimer) clearTimeout(refreshTimer);
+  refreshTimer = null;
+}
+
+// ==================== 弹窗 ====================
+function openModal(id) {
+  var modal = document.getElementById(id);
+  modal._returnFocus = document.activeElement;
+  modal.classList.add('show');
+  modal.setAttribute('aria-modal', 'true');
+  requestAnimationFrame(function() {
+    var target = modal.querySelector('input:not(:disabled), button:not(:disabled), [tabindex]:not([tabindex="-1"])');
+    if (target) target.focus();
+  });
+}
+function closeModal(id) {
+  var modal = document.getElementById(id);
+  modal.classList.remove('show');
+  modal.removeAttribute('aria-modal');
+  var returnFocus = modal._returnFocus;
+  modal._returnFocus = null;
+  if (returnFocus && document.contains(returnFocus) && typeof returnFocus.focus === 'function') {
+    returnFocus.focus({ preventScroll: true });
+  }
+}
+
+function getTopOpenModal() {
+  var modals = document.querySelectorAll('.modal.show');
+  return modals.length ? modals[modals.length - 1] : null;
+}
+
+function trapModalFocus(e, modal) {
+  var focusable = modal.querySelectorAll('button:not(:disabled), input:not(:disabled), [tabindex]:not([tabindex="-1"])');
+  if (!focusable.length) return;
+  var first = focusable[0];
+  var last = focusable[focusable.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
+}
+
+function updateAddPoolValidity() {
+  var value = document.getElementById('poolNameInput').value.trim();
+  var reserved = isReservedAutomaticName(value);
+  var duplicate = reserved || state.pools.some(function(pool) { return pool.name === value; });
+  document.getElementById('confirmAddPool').disabled = !value || duplicate;
+  document.getElementById('poolNameError').textContent = reserved ? '该名称由系统自动池保留' : (duplicate ? '个股池名称已存在' : '');
+}
+
+function updateRenameValidity() {
+  var value = document.getElementById('renameInput').value.trim();
+  var current = state.pools.find(function(pool) { return pool.id === pendingRenamePoolId; });
+  var duplicate = state.pools.some(function(pool) {
+    return pool.name === value && pool.id !== pendingRenamePoolId;
+  });
+  document.getElementById('confirmRename').disabled = !value || !current || value === current.name || duplicate;
+  document.getElementById('renameError').textContent = duplicate ? '个股池名称已存在' : '';
+}
+
+function openRenameModal(poolId) {
+  pendingRenamePoolId = poolId;
+  var pool = state.pools.find(function(p) { return p.id === poolId; });
+  if (!pool) return;
+  if (isAutomaticPool(pool)) { showToast('自动池不能重命名', 'error'); return; }
+  document.getElementById('renameInput').value = pool.name;
+  updateRenameValidity();
+  openModal('renameModal');
+  setTimeout(function() { document.getElementById('renameInput').focus(); }, 100);
+}
+function openAddStockModal(poolId) {
+  pendingAddStockPoolId = poolId;
+  searchRequestId++;
+  clearTimeout(searchTimer);
+  var pool = state.pools.find(function(p) { return p.id === poolId; });
+  if (!pool) return;
+  if (isAutomaticPool(pool)) { showToast('自动池不能手动添加股票', 'error'); return; }
+  document.getElementById('addStockPoolName').textContent = pool.name;
+  document.getElementById('stockSearchInput').value = '';
+  var container = document.getElementById('searchResults');
+  container.innerHTML = '';
+  container.appendChild(el('div', 'search-empty', '输入关键词搜索股票'));
+  openModal('addStockModal');
+  setTimeout(function() { document.getElementById('stockSearchInput').focus(); }, 100);
+}
+
+var isRefreshingLimitUpPools = false;
+async function refreshLimitUpPools(options) {
+  options = options || {};
+  var silent = !!options.silent;
+  if (isRefreshingLimitUpPools) return;
+  var button = document.querySelector('#moreMenu [data-action="refresh"]');
+  var errorBar = document.getElementById('errorBar');
+  isRefreshingLimitUpPools = true;
+  if (button && !silent) { button.disabled = true; button.setAttribute('aria-busy', 'true'); button.innerHTML = '<span class="spinner"></span>计算中'; }
+  try {
+    var response = await dashboardFetch(FIRST_LIMIT_UP_API, { method: 'POST', cache: 'no-store' });
+    if (!response.ok) throw new Error(await getApiError(response, '连板池刷新失败'));
+    var data = await response.json();
+    var autoPools = Array.isArray(data.pools) ? data.pools : [];
+    state.pools = state.pools.filter(function(pool) { return !isAutomaticPool(pool); }).concat(autoPools);
+    updateAutomaticStatus((data.status || {}).state ? data.status : { state: 'live', dataDate: (data.snapshot || {}).date });
+    invalidateMetrics(); renderTable(); renderDetailPanel(state.currentPoolId);
+    errorBar.style.display = 'none';
+    var snapshot = data.snapshot || {};
+    var stocks = Array.isArray(snapshot.stocks) ? snapshot.stocks : [];
+    var counts = {};
+    stocks.forEach(function(s) { counts[s.streak] = (counts[s.streak] || 0) + 1; });
+    var tiers = Object.keys(counts).sort(function(a, b) { return Number(a) - Number(b); });
+    if (!silent) showToast('连板池已更新：' + (snapshot.date || '--') +
+      '，' + (tiers.length ? tiers.map(function(n) { return n + '板 ' + counts[n]; }).join(' / ') : '无有效样本'), 'success');
+  } catch (e) {
+    if (!silent) { errorBar.textContent = '连板池刷新失败：' + (e.message || '请稍后重试'); errorBar.style.display = 'block'; showToast('连板池刷新失败', 'error'); }
+  } finally {
+    isRefreshingLimitUpPools = false;
+    if (button && !silent) { button.removeAttribute('aria-busy'); button.disabled = false; button.textContent = '刷新个股池'; }
+  }
+}
+
+// ==================== 排序表头 ====================
+function updateSortHeaders() {
+  var ths = document.querySelectorAll('#poolTable thead th.sortable');
+  for (var i = 0; i < ths.length; i++) {
+    var th = ths[i];
+    var key = th.dataset.sort;
+    if (key === state.sortBy) {
+      th.setAttribute('aria-sort', state.sortOrder === 'desc' ? 'descending' : 'ascending');
+      th.title = state.sortOrder === 'desc' ? '当前降序，点击切换为升序' : '当前升序，点击切换为降序';
+    } else {
+      th.setAttribute('aria-sort', 'none');
+      th.title = '点击排序';
+    }
+  }
+}
+var sortHeaders = document.querySelectorAll('#poolTable thead th.sortable');
+for (var si = 0; si < sortHeaders.length; si++) {
+  (function(th) {
+    th.addEventListener('click', function() {
+      var key = th.dataset.sort;
+      if (state.sortBy === key) {
+        state.sortOrder = state.sortOrder === 'desc' ? 'asc' : 'desc';
+      } else {
+        state.sortBy = key;
+        state.sortOrder = key === 'name' ? 'asc' : 'desc';
+      }
+      saveSort();
+      updateSortHeaders();
+      renderTable();
+    });
+    th.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); th.click(); }
+    });
+  })(sortHeaders[si]);
+}
+
+function updateDetailSortHeaders() {
+  var ths = document.querySelectorAll('#detailTable thead th.sortable');
+  for (var i = 0; i < ths.length; i++) {
+    var th = ths[i];
+    var key = th.dataset.sort;
+    if (key === state.detailSortBy) {
+      th.setAttribute('aria-sort', state.detailSortOrder === 'desc' ? 'descending' : 'ascending');
+      th.title = state.detailSortOrder === 'desc' ? '当前降序，点击切换为升序' : '当前升序，点击切换为降序';
+    } else {
+      th.setAttribute('aria-sort', 'none');
+      th.title = '点击排序';
+    }
+  }
+}
+var detailSortHeaders = document.querySelectorAll('#detailTable thead th.sortable');
+for (var dsi = 0; dsi < detailSortHeaders.length; dsi++) {
+  (function(th) {
+    th.addEventListener('click', function() {
+      var key = th.dataset.sort;
+      if (state.detailSortBy === key) {
+        state.detailSortOrder = state.detailSortOrder === 'desc' ? 'asc' : 'desc';
+      } else {
+        state.detailSortBy = key;
+        state.detailSortOrder = key === 'code' || key === 'name' ? 'asc' : 'desc';
+      }
+      saveDetailSort();
+      updateDetailSortHeaders();
+      renderDetailPanel(state.currentPoolId, { resetScroll: true });
+    });
+    th.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); th.click(); }
+    });
+  })(detailSortHeaders[dsi]);
+}
+
+// ==================== 拖拽调整列顺序 ====================
+var columnOrders = {};
+var activeColumnDrag = null;
+
+function getHeaderColumnOrder(tableId) {
+  var headers = document.querySelectorAll('#' + tableId + ' thead th[data-column]');
+  var order = [];
+  for (var i = 0; i < headers.length; i++) order.push(headers[i].dataset.column);
+  return order;
+}
+
+function isValidColumnOrder(savedOrder, defaultOrder) {
+  if (!Array.isArray(savedOrder) || savedOrder.length !== defaultOrder.length) return false;
+  var seen = {};
+  for (var i = 0; i < savedOrder.length; i++) {
+    var key = savedOrder[i];
+    if (seen[key] || defaultOrder.indexOf(key) === -1) return false;
+    seen[key] = true;
+  }
+  return true;
+}
+
+function loadColumnOrders() {
+  var saved = {};
+  try {
+    var raw = localStorage.getItem(COLUMN_ORDER_KEY);
+    if (raw) saved = JSON.parse(raw) || {};
+  } catch (e) { console.error('加载列顺序失败:', e); }
+
+  var tableIds = ['poolTable', 'detailTable'];
+  for (var i = 0; i < tableIds.length; i++) {
+    var tableId = tableIds[i];
+    var defaultOrder = getHeaderColumnOrder(tableId);
+    columnOrders[tableId] = isValidColumnOrder(saved[tableId], defaultOrder)
+      ? saved[tableId].slice()
+      : defaultOrder;
+    applyColumnOrder(tableId);
+  }
+}
+
+function saveColumnOrders() {
+  try { localStorage.setItem(COLUMN_ORDER_KEY, JSON.stringify(columnOrders)); }
+  catch (e) { console.error('保存列顺序失败:', e); }
+}
+
+function reorderRowCells(row, order) {
+  var cellsByColumn = {};
+  var currentOrder = [];
+  for (var i = 0; i < row.cells.length; i++) {
+    var column = row.cells[i].dataset.column;
+    if (!column) return;
+    cellsByColumn[column] = row.cells[i];
+    currentOrder.push(column);
+  }
+  for (var j = 0; j < order.length; j++) {
+    if (!cellsByColumn[order[j]]) return;
+  }
+  if (currentOrder.join('|') === order.join('|')) return;
+  var fragment = document.createDocumentFragment();
+  for (var k = 0; k < order.length; k++) fragment.appendChild(cellsByColumn[order[k]]);
+  row.appendChild(fragment);
+}
+
+function applyColumnOrder(tableId) {
+  var table = document.getElementById(tableId);
+  var order = columnOrders[tableId];
+  if (!table || !order) return;
+  if (table.tHead && table.tHead.rows.length) reorderRowCells(table.tHead.rows[0], order);
+  if (table.tBodies.length) {
+    var rows = table.tBodies[0].rows;
+    for (var i = 0; i < rows.length; i++) reorderRowCells(rows[i], order);
+  }
+}
+
+function clearColumnDragStyles(table) {
+  var headers = table.querySelectorAll('thead th');
+  for (var i = 0; i < headers.length; i++) {
+    headers[i].classList.remove('column-dragging', 'column-drop-before', 'column-drop-after');
+  }
+}
+
+function setupColumnDragging(tableId) {
+  var table = document.getElementById(tableId);
+  var headers = table.querySelectorAll('thead th[data-column]:not([data-column="actions"])');
+
+  table.addEventListener('click', function(e) {
+    if (table._suppressSortClickUntil > Date.now() && e.target.closest('thead th')) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }
+  }, true);
+
+  for (var i = 0; i < headers.length; i++) {
+    (function(th) {
+      th.draggable = true;
+      th.classList.add('column-draggable');
+
+      th.addEventListener('dragstart', function(e) {
+        activeColumnDrag = { tableId: tableId, column: th.dataset.column };
+        th.classList.add('column-dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', th.dataset.column);
+      });
+
+      th.addEventListener('dragover', function(e) {
+        if (!activeColumnDrag || activeColumnDrag.tableId !== tableId || activeColumnDrag.column === th.dataset.column) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        clearColumnDragStyles(table);
+        var rect = th.getBoundingClientRect();
+        th.classList.add(e.clientX < rect.left + rect.width / 2 ? 'column-drop-before' : 'column-drop-after');
+        var draggedHeader = table.querySelector('thead th[data-column="' + activeColumnDrag.column + '"]');
+        if (draggedHeader) draggedHeader.classList.add('column-dragging');
+      });
+
+      th.addEventListener('drop', function(e) {
+        if (!activeColumnDrag || activeColumnDrag.tableId !== tableId || activeColumnDrag.column === th.dataset.column) return;
+        e.preventDefault();
+        var draggedColumn = activeColumnDrag.column;
+        var targetColumn = th.dataset.column;
+        var order = columnOrders[tableId].slice();
+        order.splice(order.indexOf(draggedColumn), 1);
+        var targetIndex = order.indexOf(targetColumn);
+        var rect = th.getBoundingClientRect();
+        if (e.clientX >= rect.left + rect.width / 2) targetIndex++;
+        order.splice(targetIndex, 0, draggedColumn);
+        columnOrders[tableId] = order;
+        applyColumnOrder(tableId);
+        saveColumnOrders();
+        table._suppressSortClickUntil = Date.now() + 250;
+        activeColumnDrag = null;
+        clearColumnDragStyles(table);
+      });
+
+      th.addEventListener('dragend', function() {
+        table._suppressSortClickUntil = Date.now() + 250;
+        activeColumnDrag = null;
+        clearColumnDragStyles(table);
+      });
+    })(headers[i]);
+  }
+}
+
+// ==================== 事件绑定 ====================
+document.getElementById('addPoolBtn').addEventListener('click', function() {
+  document.getElementById('poolNameInput').value = '';
+  updateAddPoolValidity();
+  openModal('addPoolModal');
+  setTimeout(function() { document.getElementById('poolNameInput').focus(); }, 100);
+});
+document.getElementById('cancelAddPool').addEventListener('click', function() { closeModal('addPoolModal'); });
+document.getElementById('confirmAddPool').addEventListener('click', function() {
+  if (createPool(document.getElementById('poolNameInput').value)) closeModal('addPoolModal');
+});
+document.getElementById('poolNameInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') document.getElementById('confirmAddPool').click();
+});
+document.getElementById('poolNameInput').addEventListener('input', updateAddPoolValidity);
+document.getElementById('cancelRename').addEventListener('click', function() { closeModal('renameModal'); });
+document.getElementById('confirmRename').addEventListener('click', function() {
+  if (renamePool(pendingRenamePoolId, document.getElementById('renameInput').value)) closeModal('renameModal');
+});
+document.getElementById('renameInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') document.getElementById('confirmRename').click();
+});
+document.getElementById('renameInput').addEventListener('input', updateRenameValidity);
+document.getElementById('cancelAddStock').addEventListener('click', function() {
+  searchRequestId++;
+  clearTimeout(searchTimer);
+  closeModal('addStockModal');
+});
+document.getElementById('cancelDelete').addEventListener('click', function() { closeModal('deleteModal'); });
+document.getElementById('confirmDelete').addEventListener('click', doDeletePool);
+document.getElementById('cancelRemoveStock').addEventListener('click', function() {
+  pendingRemoveStock = null;
+  closeModal('removeStockModal');
+});
+document.getElementById('confirmRemoveStock').addEventListener('click', removeStockFromPool);
+
+// 搜索
+document.getElementById('stockSearchInput').addEventListener('input', function(e) {
+  clearTimeout(searchTimer);
+  var keyword = e.target.value;
+  var requestId = ++searchRequestId;
+  var container = document.getElementById('searchResults');
+  if (!keyword.trim()) {
+    container.innerHTML = '';
+    container.appendChild(el('div', 'search-empty', '输入关键词搜索股票'));
+    return;
+  }
+  searchTimer = setTimeout(async function() {
+    var results;
+    try {
+      results = await searchStocks(keyword);
+    } catch (error) {
+      if (requestId !== searchRequestId) return;
+      container.innerHTML = '';
+      container.appendChild(el('div', 'search-empty', error.message || '搜索失败，请稍后重试'));
+      return;
+    }
+    if (requestId !== searchRequestId || document.getElementById('stockSearchInput').value.trim() !== keyword.trim()) return;
+    container.innerHTML = '';
+    if (!results.length) {
+      container.appendChild(el('div', 'search-empty', '未找到匹配的股票，请换个关键词试试'));
+      return;
+    }
+    var pool = state.pools.find(function(p) { return p.id === pendingAddStockPoolId; });
+    for (var i = 0; i < results.length; i++) {
+      var stock = results[i];
+      var exists = pool && pool.stocks.some(function(s) { return s.secid === stock.secid; });
+      var item = el('div', 'search-item');
+      var info = el('div');
+      info.appendChild(el('span', 'code', stock.code));
+      info.appendChild(el('span', null, stock.name));
+      item.appendChild(info);
+      var addBtn = el('button', 'add-btn', exists ? '已添加' : '添加');
+      if (exists) {
+        addBtn.disabled = true;
+      } else {
+        (function(s) {
+          addBtn.addEventListener('click', function() {
+            if (addStockToPool(pendingAddStockPoolId, s)) {
+              addBtn.disabled = true;
+              addBtn.textContent = '已添加';
+            }
+          });
+        })(stock);
+      }
+      item.appendChild(addBtn);
+      container.appendChild(item);
+    }
+  }, 300);
+});
+
+// 刷新
+document.getElementById('refreshBtn').addEventListener('click', function() {
+  if (currentView === 'ladder') {
+    if (ladderState.date) loadLadderDate(ladderState.date);
+    else if (!ladderState.initialized) initLadderView();
+    return;
+  }
+  refreshQuotes('manual');
+  updateMarketStatus();
+});
+document.getElementById('detailAddStockBtn').addEventListener('click', function() {
+  if (state.currentPoolId) openAddStockModal(state.currentPoolId);
+});
+
+document.getElementById('detailTableWrapper').addEventListener('scroll', function() {
+  if (detailScrollFrame !== null) return;
+  detailScrollFrame = requestAnimationFrame(function() {
+    detailScrollFrame = null;
+    renderVisibleDetailRows(false);
+  });
+}, { passive: true });
+
+document.addEventListener('visibilitychange', function() {
+  if (document.hidden) {
+    if (refreshTimer) clearTimeout(refreshTimer);
+    refreshTimer = null;
+    stopLadderPoll();
+    return;
+  }
+  if (currentView === 'ladder') {
+    scheduleLadderPoll();
+    return;
+  }
+  if (!autoRefreshEnabled) return;
+  if (Core.isPollingWindow(Date.now())) refreshQuotes('visible');
+  else scheduleNextAutoRefresh(REFRESH_INTERVAL);
+});
+
+// 点击弹窗外部关闭
+var modals = document.querySelectorAll('.modal');
+for (var mi = 0; mi < modals.length; mi++) {
+  (function(modal) {
+    modal.addEventListener('click', function(e) {
+      if (e.target !== modal) return;
+      if (modal.id === 'deleteModal' || modal.id === 'removeStockModal') return;
+      closeModal(modal.id);
+    });
+  })(modals[mi]);
+}
+
+// ESC 关闭弹窗与更多菜单
+document.addEventListener('keydown', function(e) {
+  var modal = getTopOpenModal();
+  if (e.key === 'Tab' && modal) {
+    trapModalFocus(e, modal);
+    return;
+  }
+  if (e.key !== 'Escape') return;
+  if (modal) closeModal(modal.id);
+  else closeMoreMenu();
+});
+
+// ==================== 梯队回看 ====================
+var currentView = 'live';
+var ladderState = {
+  dates: [],
+  date: null,
+  data: null,
+  selectedStreak: null,
+  requestId: 0,
+  initialized: false
+};
+var ladderPollTimer = null;
+
+function boardName(streak) {
+  return streak === 1 ? '首板' : streak + '板';
+}
+
+function formatLadderDate(dateStr) {
+  if (!dateStr || dateStr.length !== 8) return dateStr || '--';
+  return dateStr.slice(0, 4) + '-' + dateStr.slice(4, 6) + '-' + dateStr.slice(6, 8);
+}
+
+function setView(view) {
+  if (view !== 'live' && view !== 'ladder') view = 'live';
+  currentView = view;
+  document.body.dataset.view = view;
+  document.getElementById('liveViewBtn').classList.toggle('active', view === 'live');
+  document.getElementById('ladderViewBtn').classList.toggle('active', view === 'ladder');
+  document.getElementById('liveViewBtn').setAttribute('aria-selected', view === 'live' ? 'true' : 'false');
+  document.getElementById('ladderViewBtn').setAttribute('aria-selected', view === 'ladder' ? 'true' : 'false');
+  document.getElementById('liveView').hidden = view !== 'live';
+  document.getElementById('ladderView').hidden = view !== 'ladder';
+  try { localStorage.setItem(VIEW_KEY, view); } catch (e) {}
+  if (view === 'ladder') {
+    if (!ladderState.initialized) initLadderView();
+    else scheduleLadderPoll();
+  } else {
+    stopLadderPoll();
+    updateMarketStatus();
+    updateLastUpdate();
+  }
+}
+
+async function initLadderView() {
+  ladderState.initialized = true;
+  setLadderMessage('正在加载历史日期…');
+  try {
+    var response = await dashboardFetch(LADDER_DATES_API, { cache: 'no-store' });
+    if (!response.ok) throw new Error(await getApiError(response, '无法读取历史日期'));
+    var data = await response.json();
+    ladderState.dates = Array.isArray(data.dates) ? data.dates : [];
+  } catch (e) {
+    setLadderMessage(e.message || '无法读取历史日期', true);
+    renderLadderEmpty('历史数据不可用');
+    return;
+  }
+  if (!ladderState.dates.length) {
+    setLadderMessage('暂无历史数据，请先导入或等待每日自动积累');
+    renderLadderEmpty('暂无历史数据');
+    return;
+  }
+  var savedDate = null;
+  try {
+    savedDate = localStorage.getItem(LADDER_DATE_KEY) || null;
+    var savedTier = parseInt(localStorage.getItem(LADDER_TIER_KEY) || '', 10);
+    ladderState.selectedStreak = Number.isFinite(savedTier) && savedTier >= 1 ? savedTier : null;
+  } catch (e) {}
+  var target = (savedDate && ladderState.dates.indexOf(savedDate) !== -1)
+    ? savedDate
+    : ladderState.dates[ladderState.dates.length - 1];
+  await loadLadderDate(target);
+}
+
+function setLadderMessage(text, isError) {
+  var elMsg = document.getElementById('ladderMessage');
+  elMsg.textContent = text || '';
+  elMsg.className = isError ? 'error' : '';
+}
+
+function renderLadderEmpty(text) {
+  document.getElementById('tierCards').innerHTML = '';
+  var tbody = document.getElementById('ladderTableBody');
+  tbody.innerHTML = '';
+  var tr = el('tr');
+  var td = el('td', 'detail-empty-cell', text);
+  td.colSpan = 5;
+  tr.appendChild(td);
+  tbody.appendChild(tr);
+}
+
+async function loadLadderDate(dateStr, options) {
+  options = options || {};
+  var requestId = ++ladderState.requestId;
+  if (!options.silent) setLadderMessage('加载中…');
+  var data;
+  try {
+    var response = await dashboardFetch(LADDER_HISTORY_API + '?date=' + encodeURIComponent(dateStr), { cache: 'no-store' });
+    if (!response.ok) throw new Error(await getApiError(response, '无法读取历史数据'));
+    data = await response.json();
+  } catch (e) {
+    if (requestId !== ladderState.requestId) return;
+    setLadderMessage(e.message || '无法读取历史数据', true);
+    scheduleLadderPoll();
+    return;
+  }
+  if (requestId !== ladderState.requestId) return; // 防止旧请求覆盖新日期结果
+  ladderState.date = dateStr;
+  ladderState.data = data;
+  try { localStorage.setItem(LADDER_DATE_KEY, dateStr); } catch (e) {}
+  var tiers = Array.isArray(data.tiers) ? data.tiers : [];
+  var streaks = tiers.map(function(t) { return t.streak; });
+  if (ladderState.selectedStreak === null || streaks.indexOf(ladderState.selectedStreak) === -1) {
+    // 默认选中最高板位（情绪焦点）；无数据时不选中
+    ladderState.selectedStreak = streaks.length ? streaks[streaks.length - 1] : null;
+  }
+  renderLadderDateBar();
+  renderTierCards();
+  renderLadderTable();
+  setLadderMessage('');
+  scheduleLadderPoll();
+}
+
+function renderLadderDateBar() {
+  var dates = ladderState.dates;
+  var index = dates.indexOf(ladderState.date);
+  var select = document.getElementById('ladderDateSelect');
+  select.innerHTML = '';
+  for (var i = dates.length - 1; i >= 0; i--) {
+    var option = document.createElement('option');
+    option.value = dates[i];
+    option.textContent = formatLadderDate(dates[i]);
+    if (dates[i] === ladderState.date) option.selected = true;
+    select.appendChild(option);
+  }
+  document.getElementById('ladderPrevBtn').disabled = index <= 0;
+  document.getElementById('ladderNextBtn').disabled = index < 0 || index >= dates.length - 1;
+  document.getElementById('ladderLatestBtn').disabled = !dates.length || ladderState.date === dates[dates.length - 1];
+
+  var statusEl = document.getElementById('ladderStatus');
+  var status = ladderState.data && ladderState.data.status;
+  if (status === 'final') { statusEl.textContent = '收盘定版'; statusEl.className = 'final'; }
+  else if (status === 'live') { statusEl.textContent = '盘中更新'; statusEl.className = 'live'; }
+  else { statusEl.textContent = '待确认'; statusEl.className = 'pending'; }
+}
+
+function tierRateText(tier, status) {
+  if (status === 'pending') return { text: '晋级率 待确认', na: true };
+  if (tier.evaluable > 0 && tier.rate !== null && tier.rate !== undefined) {
+    return { text: '晋级率 ' + tier.rate.toFixed(2) + '% · ' + tier.promoted + '/' + tier.evaluable, na: false };
+  }
+  return { text: '晋级率 --', na: true };
+}
+
+function renderTierCards() {
+  var container = document.getElementById('tierCards');
+  container.innerHTML = '';
+  var data = ladderState.data;
+  var tiers = data && Array.isArray(data.tiers) ? data.tiers : [];
+  if (!tiers.length) {
+    renderLadderEmpty('该交易日没有涨停梯队数据');
+    return;
+  }
+  for (var i = 0; i < tiers.length; i++) {
+    (function(tier) {
+      var card = el('button', 'tier-card' + (tier.streak === ladderState.selectedStreak ? ' selected' : ''));
+      card.type = 'button';
+      card.setAttribute('aria-pressed', tier.streak === ladderState.selectedStreak ? 'true' : 'false');
+      card.setAttribute('aria-label', boardName(tier.streak) + '，' + tier.count + ' 只');
+      card.appendChild(el('span', 'tier-name', boardName(tier.streak)));
+      card.appendChild(el('span', 'tier-count', tier.count + ' 只'));
+      var rateInfo = tierRateText(tier, data.status);
+      card.appendChild(el('span', 'tier-rate' + (rateInfo.na ? ' na' : ''), rateInfo.text));
+      card.addEventListener('click', function() {
+        selectLadderTier(tier.streak);
+      });
+      container.appendChild(card);
+    })(tiers[i]);
+  }
+}
+
+function selectLadderTier(streak) {
+  ladderState.selectedStreak = streak;
+  try { localStorage.setItem(LADDER_TIER_KEY, String(streak)); } catch (e) {}
+  renderTierCards();
+  renderLadderTable();
+}
+
+function promotionDisplay(promotion) {
+  if (promotion === 'yes') return { text: '是', cls: 'promotion-yes' };
+  if (promotion === 'no') return { text: '否', cls: 'promotion-no' };
+  if (promotion === 'unknown') return { text: '不可评估', cls: 'promotion-unknown' };
+  return { text: '待确认', cls: 'promotion-pending' };
+}
+
+function renderLadderTable() {
+  var tbody = document.getElementById('ladderTableBody');
+  tbody.innerHTML = '';
+  var data = ladderState.data;
+  var stocks = data && Array.isArray(data.stocks) ? data.stocks : [];
+  var selected = stocks.filter(function(s) { return s.streak === ladderState.selectedStreak; });
+  if (!selected.length) {
+    if (stocks.length && ladderState.selectedStreak === null) {
+      renderLadderEmpty('请选择上方梯队卡片查看个股明细');
+    }
+    return;
+  }
+  for (var i = 0; i < selected.length; i++) {
+    var stock = selected[i];
+    var tr = el('tr');
+    tr.appendChild(setColumn(el('td', 'col-code', stock.code), 'code'));
+    var nameTd = el('td', 'col-stock-name');
+    var nameSpan = el('span', 'stock-name-text', stock.name);
+    nameSpan.title = stock.name;
+    nameTd.appendChild(nameSpan);
+    tr.appendChild(nameTd);
+    var promotion = promotionDisplay(stock.promotion);
+    tr.appendChild(el('td', 'col-num ' + promotion.cls, promotion.text));
+    var close = typeof stock.close === 'number' ? stock.close.toFixed(2) : '--';
+    tr.appendChild(el('td', 'col-num', close));
+    var pct = typeof stock.changePct === 'number' ? stock.changePct : null;
+    tr.appendChild(el('td', 'col-num ' + getValClass(pct), pct !== null ? formatPct(pct) : '--'));
+    tbody.appendChild(tr);
+  }
+}
+
+function stopLadderPoll() {
+  if (ladderPollTimer) { clearTimeout(ladderPollTimer); ladderPollTimer = null; }
+}
+
+function scheduleLadderPoll() {
+  stopLadderPoll();
+  if (currentView !== 'ladder' || document.hidden || !ladderState.data) return;
+  var status = ladderState.data.status;
+  // 收盘定版的历史日期无需轮询；盘中/待确认状态跟随实时行情刷新
+  if (status !== 'live' && status !== 'pending') return;
+  if (!Core.isPollingWindow(Date.now()) && status === 'live') return;
+  ladderPollTimer = setTimeout(function() {
+    ladderPollTimer = null;
+    if (currentView !== 'ladder' || document.hidden || !ladderState.date) return;
+    loadLadderDate(ladderState.date, { silent: true });
+  }, REFRESH_INTERVAL);
+}
+
+document.getElementById('liveViewBtn').addEventListener('click', function() { setView('live'); });
+document.getElementById('ladderViewBtn').addEventListener('click', function() { setView('ladder'); });
+document.getElementById('ladderPrevBtn').addEventListener('click', function() {
+  var index = ladderState.dates.indexOf(ladderState.date);
+  if (index > 0) loadLadderDate(ladderState.dates[index - 1]);
+});
+document.getElementById('ladderNextBtn').addEventListener('click', function() {
+  var index = ladderState.dates.indexOf(ladderState.date);
+  if (index >= 0 && index < ladderState.dates.length - 1) loadLadderDate(ladderState.dates[index + 1]);
+});
+document.getElementById('ladderLatestBtn').addEventListener('click', function() {
+  if (ladderState.dates.length) loadLadderDate(ladderState.dates[ladderState.dates.length - 1]);
+});
+document.getElementById('ladderDateSelect').addEventListener('change', function(e) {
+  if (e.target.value) loadLadderDate(e.target.value);
+});
+
+// ==================== 初始化 ====================
+async function init() {
+  setSaveStatus('正在加载清单', 'saving');
+  try {
+    await loadState();
+  } catch (e) {
+    poolStorageBlocked = true;
+    setSaveStatus('清单读取失败', 'error');
+    showStorageError(e.message || '无法读取个股池文件');
+  }
+  loadColumnOrders();
+  loadPoolFilters();
+  setupColumnDragging('poolTable');
+  setupColumnDragging('detailTable');
+  updateSortHeaders();
+  updateDetailSortHeaders();
+  updateMarketStatus();
+  if (state.pools.length > 0) showSkeleton();
+  else renderTable();
+  renderDetailPanel(state.currentPoolId);
+  refreshQuotes('initial');
+  startAutoRefresh();
+  startPoolFileSync();
+  var savedView = 'live';
+  try { savedView = localStorage.getItem(VIEW_KEY) || 'live'; } catch (e) {}
+  if (savedView === 'ladder') setView('ladder');
+}
+init();
+</script>
+</body>
+</html>
